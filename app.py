@@ -71,7 +71,7 @@ if "y_test" not in st.session_state:
 
 if menu == "Dataset":
 
-    df = pd.read_excel("dataset_skripsi.xlsx")
+    df = pd.read_excel("dataset_skripsi I(3) .xlsx")
 
     df.columns = df.columns.str.strip()
 
@@ -324,4 +324,5 @@ elif menu == "Prediksi Masa Depan":
     ax.set_title("Prediksi Curah Hujan Masa Depan")
 
     st.pyplot(fig)
+
 
