@@ -176,7 +176,7 @@ elif menu == "Load Model":
         )
 
         x_test = pd.read_csv(
-            "x_test_34.csv"
+            "X_test_34.csv"
         ).values
 
         y_test = pd.read_csv(
@@ -324,6 +324,7 @@ elif menu == "Prediksi Masa Depan":
     ax.set_title("Prediksi Curah Hujan Masa Depan")
 
     st.pyplot(fig)
+
 
 
 
