@@ -165,7 +165,7 @@ elif menu == "Load Model":
     if st.button("Load Model"):
 
         model = load_model(
-            "model_ts_50_ep_100_lr_0.01.h5",
+            "model_34_ep100_lr0.0001_ts25.h5",
             compile=False
         )
 
@@ -324,6 +324,7 @@ elif menu == "Prediksi Masa Depan":
     ax.set_title("Prediksi Curah Hujan Masa Depan")
 
     st.pyplot(fig)
+
 
 
 
