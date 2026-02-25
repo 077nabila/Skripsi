@@ -40,7 +40,7 @@ menu = st.sidebar.radio(
 
 
 # =========================
-# SESSION STATE INIT
+# SESSION STATE
 # =========================
 
 if "df_asli" not in st.session_state:
@@ -72,21 +72,12 @@ if "y_test" not in st.session_state:
 if menu == "Dataset":
 
     df = pd.read_excel("dataset_skripsi (3).xlsx")
-
     df.columns = df.columns.str.strip()
 
-    df["Tanggal"] = pd.to_datetime(
-        df["Tanggal"],
-        errors="coerce"
-    )
-
+    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
     df = df.dropna(subset=["Tanggal"])
 
-    df[FITUR] = df[FITUR].apply(
-        pd.to_numeric,
-        errors="coerce"
-    )
-
+    df[FITUR] = df[FITUR].apply(pd.to_numeric, errors="coerce")
     df = df.reset_index(drop=True)
 
     st.session_state.df_asli = df
@@ -110,9 +101,7 @@ elif menu == "Interpolasi Linear":
         st.stop()
 
     df_interp = df.copy()
-
     df_interp[FITUR] = df_interp[FITUR].interpolate(method="linear")
-
     df_interp[FITUR] = df_interp[FITUR].bfill()
     df_interp[FITUR] = df_interp[FITUR].ffill()
 
@@ -137,17 +126,12 @@ elif menu == "Normalisasi":
         st.stop()
 
     scaler = MinMaxScaler(feature_range=(0, 1))
-
     scaled = scaler.fit_transform(df[FITUR])
 
     st.session_state.scaler = scaler
     st.session_state.scaled_data = scaled
 
-    df_scaled = pd.DataFrame(
-        scaled,
-        columns=FITUR
-    )
-
+    df_scaled = pd.DataFrame(scaled, columns=FITUR)
     df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
 
     st.write("Data setelah normalisasi:")
@@ -175,13 +159,8 @@ elif menu == "Load Model":
             metrics=["mae"]
         )
 
-        x_test = pd.read_csv(
-            "X_test_34.csv"
-        ).values
-
-        y_test = pd.read_csv(
-            "y_test_34.csv"
-        ).values
+        x_test = pd.read_csv("X_test_34.csv").values
+        y_test = pd.read_csv("y_test_34.csv").values
 
         x_test = x_test.reshape(
             x_test.shape[0],
@@ -212,42 +191,48 @@ elif menu == "Prediksi Test":
         st.error("Load model dan normalisasi dulu")
         st.stop()
 
-    pred = model.predict(x_test)
+    # Prediksi
+    pred = model.predict(x_test, verbose=0)
 
+    # Inverse scaling prediksi
     dummy_pred = np.zeros((len(pred), len(FITUR)))
     dummy_pred[:, 2] = pred.flatten()
-
     pred_inverse = scaler.inverse_transform(dummy_pred)[:, 2]
 
+    # Inverse scaling aktual
     dummy_actual = np.zeros((len(y_test), len(FITUR)))
     dummy_actual[:, 2] = y_test.flatten()
-
     actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
 
-    tanggal = df["Tanggal"].iloc[-len(pred):]
+    # Sinkronisasi tanggal
+    start_index = len(df) - len(actual_inverse)
+    tanggal = df["Tanggal"].iloc[start_index:].reset_index(drop=True)
 
     hasil = pd.DataFrame({
-
-        "Tanggal": tanggal.values,
+        "Tanggal": tanggal,
         "Aktual RR": actual_inverse,
         "Prediksi RR": pred_inverse
-
     })
 
     st.write("Hasil Prediksi Test:")
     st.dataframe(hasil)
 
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
+    st.write("RMSE:", round(rmse, 3))
 
-    st.write("RMSE:", rmse)
+    # Plot rapi
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-    fig, ax = plt.subplots()
+    ax.plot(tanggal, actual_inverse, label="Aktual", linewidth=2)
+    ax.plot(tanggal, pred_inverse, label="Prediksi", linewidth=2)
 
-    ax.plot(tanggal, actual_inverse, label="Aktual")
-    ax.plot(tanggal, pred_inverse, label="Prediksi")
-
-    ax.set_title("Perbandingan Aktual vs Prediksi")
+    ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (RR)")
     ax.legend()
+    ax.grid(True)
+
+    plt.xticks(rotation=45)
 
     st.pyplot(fig)
 
@@ -267,23 +252,17 @@ elif menu == "Prediksi Masa Depan":
         st.error("Load model dan normalisasi dulu")
         st.stop()
 
-    n = st.selectbox(
-        "Jumlah hari prediksi",
-        [1, 7, 14, 30, 90, 180, 365]
-    )
+    n = st.selectbox("Jumlah hari prediksi", [1, 7, 14, 30, 90, 180, 365])
 
     last = x_test[-1:]
-
     future_scaled = []
 
     for i in range(n):
 
         pred = model.predict(last, verbose=0)
-
         future_scaled.append(pred[0][0])
 
         new_row = last[:, -1, :].copy()
-
         new_row[0][2] = pred[0][0]
 
         last = np.concatenate(
@@ -295,39 +274,28 @@ elif menu == "Prediksi Masa Depan":
 
     dummy = np.zeros((n, len(FITUR)))
     dummy[:, 2] = future_scaled
-
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
     tanggal_future = pd.date_range(
         start=df["Tanggal"].iloc[-1],
-        periods=n+1
+        periods=n + 1
     )[1:]
 
     hasil_future = pd.DataFrame({
-
         "Tanggal": tanggal_future,
         "Prediksi RR": future_inverse
-
     })
 
     st.write("Prediksi Masa Depan:")
     st.dataframe(hasil_future)
 
-    fig, ax = plt.subplots()
-
-    ax.plot(
-        tanggal_future,
-        future_inverse,
-        marker="o"
-    )
-
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(tanggal_future, future_inverse, marker="o")
     ax.set_title("Prediksi Curah Hujan Masa Depan")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (RR)")
+    ax.grid(True)
+
+    plt.xticks(rotation=45)
 
     st.pyplot(fig)
-
-
-
-
-
-
-
