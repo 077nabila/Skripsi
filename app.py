@@ -176,11 +176,11 @@ elif menu == "Load Model":
         )
 
         x_test = pd.read_csv(
-            "xtest_splitdata_0.9_epochs_100_lr_0.01_ts_25.csv"
+            "x_test_34.csv"
         ).values
 
         y_test = pd.read_csv(
-            "ytest_splitdata_0.9_epochs_100_lr_0.01_ts_25.csv"
+            "y_test_34.csv"
         ).values
 
         x_test = x_test.reshape(
@@ -324,6 +324,7 @@ elif menu == "Prediksi Masa Depan":
     ax.set_title("Prediksi Curah Hujan Masa Depan")
 
     st.pyplot(fig)
+
 
 
 
