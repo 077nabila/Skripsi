@@ -167,73 +167,68 @@ elif menu == "Load Model":
 
         st.success("Model berhasil di-load")
 
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
-# =========================
-# MENU PREDIKSI TEST
-# =========================
+# ===== SMOOTHING =====
+smooth_actual = hasil["Aktual RR"].rolling(7, center=True).mean()
+smooth_pred = hasil["Prediksi RR"].rolling(7, center=True).mean()
 
-elif menu == "Prediksi Test":
+# ===== ERROR =====
+error = smooth_actual - smooth_pred
 
-    model = st.session_state.model
-    scaler = st.session_state.scaler
-    x_test = st.session_state.x_test
-    y_test = st.session_state.y_test
-    df = st.session_state.df_interpolasi
+fig, ax = plt.subplots(figsize=(16,6), dpi=140)
 
-    if model is None or scaler is None or df is None:
-        st.error("Load dataset, normalisasi, dan model dulu")
-        st.stop()
+# Garis aktual
+ax.plot(
+    hasil["Tanggal"],
+    smooth_actual,
+    label="Aktual",
+    linewidth=2.8
+)
 
-    pred = model.predict(x_test, verbose=0)
+# Garis prediksi
+ax.plot(
+    hasil["Tanggal"],
+    smooth_pred,
+    label="Prediksi",
+    linewidth=2.8,
+    linestyle="--"
+)
 
-    dummy_pred = np.zeros((len(pred), len(FITUR)))
-    dummy_pred[:, 2] = pred.flatten()
-    pred_inverse = scaler.inverse_transform(dummy_pred)[:, 2]
+# Area selisih (biar terlihat kualitas model)
+ax.fill_between(
+    hasil["Tanggal"],
+    smooth_actual,
+    smooth_pred,
+    alpha=0.15
+)
 
-    dummy_actual = np.zeros((len(y_test), len(FITUR)))
-    dummy_actual[:, 2] = y_test.flatten()
-    actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
+# Format tanggal
+ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
 
-    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)]
+# Judul & label
+ax.set_title(
+    "Perbandingan Aktual vs Prediksi Curah Hujan",
+    fontsize=18,
+    fontweight="bold",
+    pad=15
+)
 
-    hasil = pd.DataFrame({
-        "Tanggal": tanggal,
-        "Aktual RR": actual_inverse,
-        "Prediksi RR": pred_inverse
-    })
+ax.set_xlabel("Tanggal", fontsize=12)
+ax.set_ylabel("Curah Hujan (mm)", fontsize=12)
 
-    hasil = hasil.sort_values("Tanggal").reset_index(drop=True)
+# Grid elegan
+ax.grid(True, linestyle="--", alpha=0.3)
 
-    st.dataframe(hasil, use_container_width=True)
+# Legend
+ax.legend(fontsize=11)
 
-    rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
-    st.metric("RMSE", f"{rmse:.3f}")
+plt.xticks(rotation=45)
+plt.tight_layout()
 
-    # ===== SMOOTHING =====
-    smooth_actual = hasil["Aktual RR"].rolling(7, center=True).mean()
-    smooth_pred = hasil["Prediksi RR"].rolling(7, center=True).mean()
-
-    # ===== PLOT =====
-    fig, ax = plt.subplots(figsize=(14,6), dpi=120)
-
-    ax.plot(hasil["Tanggal"], smooth_actual, label="Aktual", linewidth=2.5)
-    ax.plot(hasil["Tanggal"], smooth_pred, label="Prediksi", linewidth=2.5)
-
-    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-
-    ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan", fontsize=16, fontweight="bold")
-    ax.set_xlabel("Tanggal")
-    ax.set_ylabel("Curah Hujan (mm)")
-
-    ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.5)
-
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-
-    st.pyplot(fig, use_container_width=True)
-
+st.pyplot(fig, use_container_width=True)
 
 # =========================
 # MENU PREDIKSI MASA DEPAN
@@ -296,3 +291,4 @@ elif menu == "Prediksi Masa Depan":
     plt.tight_layout()
 
     st.pyplot(fig, use_container_width=True)
+
