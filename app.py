@@ -19,12 +19,16 @@ import tensorflow as tf
 FITUR = ["TAVG", "RH_AVG", "RR"]
 TIMESTEP = 25
 
+plt.style.use("seaborn-v0_8-darkgrid")  # style grafik bagus
+
 
 # =========================
 # TITLE
 # =========================
 
-st.title("PREDIKSI CURAH HUJAN MENGGUNAKAN LSTM")
+st.set_page_config(layout="wide")
+
+st.title("🌧️ Prediksi Curah Hujan Menggunakan LSTM")
 
 menu = st.sidebar.radio(
     "Menu",
@@ -75,8 +79,8 @@ if menu == "Dataset":
 
     st.session_state.df_asli = df
 
-    st.write("Dataset Asli:")
-    st.dataframe(df)
+    st.subheader("Dataset Asli")
+    st.dataframe(df, use_container_width=True)
 
     st.success("Dataset berhasil di-load")
 
@@ -100,8 +104,8 @@ elif menu == "Interpolasi Linear":
 
     st.session_state.df_interpolasi = df_interp
 
-    st.write("Data setelah interpolasi:")
-    st.dataframe(df_interp)
+    st.subheader("Data Setelah Interpolasi")
+    st.dataframe(df_interp, use_container_width=True)
 
     st.success("Interpolasi berhasil")
 
@@ -127,8 +131,8 @@ elif menu == "Normalisasi":
     df_scaled = pd.DataFrame(scaled, columns=FITUR)
     df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
 
-    st.write("Data setelah normalisasi:")
-    st.dataframe(df_scaled)
+    st.subheader("Data Setelah Normalisasi")
+    st.dataframe(df_scaled, use_container_width=True)
 
     st.success("Normalisasi berhasil")
 
@@ -184,14 +188,10 @@ elif menu == "Prediksi Test":
         st.error("Load dataset, normalisasi, dan model dulu")
         st.stop()
 
-    # =====================
-    # PREDIKSI
-    # =====================
+    # Prediksi
     pred = model.predict(x_test, verbose=0)
 
-    # =====================
-    # INVERSE SCALING
-    # =====================
+    # Inverse scaling
     dummy_pred = np.zeros((len(pred), len(FITUR)))
     dummy_pred[:, 2] = pred.flatten()
     pred_inverse = scaler.inverse_transform(dummy_pred)[:, 2]
@@ -200,9 +200,7 @@ elif menu == "Prediksi Test":
     dummy_actual[:, 2] = y_test.flatten()
     actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
 
-    # =====================
-    # SINKRONISASI TANGGAL (FIX TIMESTEP)
-    # =====================
+    # Sinkronisasi tanggal
     tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
 
     hasil = pd.DataFrame({
@@ -211,32 +209,45 @@ elif menu == "Prediksi Test":
         "Prediksi RR": pred_inverse
     }).sort_values("Tanggal")
 
-    st.write("Hasil Prediksi Test:")
-    st.dataframe(hasil)
+    st.subheader("Hasil Prediksi Test")
+    st.dataframe(hasil, use_container_width=True)
 
-    # =====================
     # RMSE
-    # =====================
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
-    st.success(f"RMSE: {rmse:.3f}")
+    st.metric("RMSE", f"{rmse:.3f}")
 
-    # =====================
-    # PLOT
-    # =====================
-    fig, ax = plt.subplots(figsize=(12, 6))
+    # Plot
+    fig, ax = plt.subplots(figsize=(14, 6))
 
-    ax.plot(hasil["Tanggal"], hasil["Aktual RR"], label="Aktual", linewidth=2)
-    ax.plot(hasil["Tanggal"], hasil["Prediksi RR"], label="Prediksi", linewidth=2)
+    ax.plot(
+        hasil["Tanggal"],
+        hasil["Aktual RR"],
+        label="Aktual",
+        linewidth=2.5
+    )
 
-    ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan")
+    ax.plot(
+        hasil["Tanggal"],
+        hasil["Prediksi RR"],
+        label="Prediksi",
+        linewidth=2.5
+    )
+
+    ax.set_title(
+        "Perbandingan Aktual vs Prediksi Curah Hujan",
+        fontsize=16,
+        fontweight="bold"
+    )
+
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
     ax.legend()
-    ax.grid(True)
+    ax.grid(True, linestyle="--", alpha=0.6)
 
     plt.xticks(rotation=45)
+    plt.tight_layout()
 
-    st.pyplot(fig)
+    st.pyplot(fig, use_container_width=True)
 
 
 # =========================
@@ -288,17 +299,30 @@ elif menu == "Prediksi Masa Depan":
         "Prediksi RR": future_inverse
     })
 
-    st.write("Prediksi Masa Depan:")
-    st.dataframe(hasil_future)
+    st.subheader("Prediksi Masa Depan")
+    st.dataframe(hasil_future, use_container_width=True)
 
-    fig, ax = plt.subplots(figsize=(12, 6))
-    ax.plot(tanggal_future, future_inverse, marker="o")
+    # Plot
+    fig, ax = plt.subplots(figsize=(14, 6))
 
-    ax.set_title("Prediksi Curah Hujan Masa Depan")
+    ax.plot(
+        tanggal_future,
+        future_inverse,
+        marker="o",
+        linewidth=2.5
+    )
+
+    ax.set_title(
+        "Prediksi Curah Hujan Masa Depan",
+        fontsize=16,
+        fontweight="bold"
+    )
+
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
-    ax.grid(True)
+    ax.grid(True, linestyle="--", alpha=0.6)
 
     plt.xticks(rotation=45)
+    plt.tight_layout()
 
-    st.pyplot(fig)
+    st.pyplot(fig, use_container_width=True)
