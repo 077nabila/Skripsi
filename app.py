@@ -1,5 +1,5 @@
 # =========================
-# IMPORT LIBRARY
+# IMPORT
 # =========================
 
 import streamlit as st
@@ -45,26 +45,16 @@ menu = st.sidebar.radio(
 
 
 # =========================
-# SESSION STATE
+# SESSION
 # =========================
 
-keys = [
-    "df_asli",
-    "df_interpolasi",
-    "scaled_data",
-    "scaler",
-    "model",
-    "x_test",
-    "y_test"
-]
-
-for k in keys:
-    if k not in st.session_state:
-        st.session_state[k] = None
+for key in ["df_asli","df_interpolasi","scaler","model","x_test","y_test"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
 
 # =========================
-# MENU DATASET
+# DATASET
 # =========================
 
 if menu == "Dataset":
@@ -85,7 +75,7 @@ if menu == "Dataset":
 
 
 # =========================
-# MENU INTERPOLASI
+# INTERPOLASI
 # =========================
 
 elif menu == "Interpolasi Linear":
@@ -93,14 +83,12 @@ elif menu == "Interpolasi Linear":
     df = st.session_state.df_asli
 
     if df is None:
-        st.error("Load Dataset dulu")
+        st.error("Load dataset dulu")
         st.stop()
 
     df_interp = df.copy()
-
     df_interp[FITUR] = df_interp[FITUR].interpolate("linear")
-    df_interp[FITUR] = df_interp[FITUR].bfill()
-    df_interp[FITUR] = df_interp[FITUR].ffill()
+    df_interp[FITUR] = df_interp[FITUR].bfill().ffill()
 
     st.session_state.df_interpolasi = df_interp
 
@@ -109,7 +97,7 @@ elif menu == "Interpolasi Linear":
 
 
 # =========================
-# MENU NORMALISASI
+# NORMALISASI
 # =========================
 
 elif menu == "Normalisasi":
@@ -117,24 +105,19 @@ elif menu == "Normalisasi":
     df = st.session_state.df_interpolasi
 
     if df is None:
-        st.error("Lakukan interpolasi dulu")
+        st.error("Interpolasi dulu")
         st.stop()
 
     scaler = MinMaxScaler()
     scaled = scaler.fit_transform(df[FITUR])
 
     st.session_state.scaler = scaler
-    st.session_state.scaled_data = scaled
 
-    df_scaled = pd.DataFrame(scaled, columns=FITUR)
-    df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
-
-    st.dataframe(df_scaled, use_container_width=True)
     st.success("Normalisasi berhasil")
 
 
 # =========================
-# MENU LOAD MODEL
+# LOAD MODEL
 # =========================
 
 elif menu == "Load Model":
@@ -167,73 +150,81 @@ elif menu == "Load Model":
 
         st.success("Model berhasil di-load")
 
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-
-# ===== SMOOTHING =====
-smooth_actual = hasil["Aktual RR"].rolling(7, center=True).mean()
-smooth_pred = hasil["Prediksi RR"].rolling(7, center=True).mean()
-
-# ===== ERROR =====
-error = smooth_actual - smooth_pred
-
-fig, ax = plt.subplots(figsize=(16,6), dpi=140)
-
-# Garis aktual
-ax.plot(
-    hasil["Tanggal"],
-    smooth_actual,
-    label="Aktual",
-    linewidth=2.8
-)
-
-# Garis prediksi
-ax.plot(
-    hasil["Tanggal"],
-    smooth_pred,
-    label="Prediksi",
-    linewidth=2.8,
-    linestyle="--"
-)
-
-# Area selisih (biar terlihat kualitas model)
-ax.fill_between(
-    hasil["Tanggal"],
-    smooth_actual,
-    smooth_pred,
-    alpha=0.15
-)
-
-# Format tanggal
-ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-
-# Judul & label
-ax.set_title(
-    "Perbandingan Aktual vs Prediksi Curah Hujan",
-    fontsize=18,
-    fontweight="bold",
-    pad=15
-)
-
-ax.set_xlabel("Tanggal", fontsize=12)
-ax.set_ylabel("Curah Hujan (mm)", fontsize=12)
-
-# Grid elegan
-ax.grid(True, linestyle="--", alpha=0.3)
-
-# Legend
-ax.legend(fontsize=11)
-
-plt.xticks(rotation=45)
-plt.tight_layout()
-
-st.pyplot(fig, use_container_width=True)
-
-)
 
 # =========================
-# MENU PREDIKSI MASA DEPAN
+# PREDIKSI TEST
+# =========================
+
+elif menu == "Prediksi Test":
+
+    model = st.session_state.model
+    scaler = st.session_state.scaler
+    x_test = st.session_state.x_test
+    y_test = st.session_state.y_test
+    df = st.session_state.df_interpolasi
+
+    if model is None or scaler is None or df is None:
+        st.error("Load dataset, normalisasi, dan model dulu")
+        st.stop()
+
+    pred = model.predict(x_test, verbose=0)
+
+    # inverse scaling
+    dummy_pred = np.zeros((len(pred), len(FITUR)))
+    dummy_pred[:,2] = pred.flatten()
+    pred_inverse = scaler.inverse_transform(dummy_pred)[:,2]
+
+    dummy_actual = np.zeros((len(y_test), len(FITUR)))
+    dummy_actual[:,2] = y_test.flatten()
+    actual_inverse = scaler.inverse_transform(dummy_actual)[:,2]
+
+    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP+len(actual_inverse)].reset_index(drop=True)
+
+    hasil = pd.DataFrame({
+        "Tanggal": tanggal,
+        "Aktual": actual_inverse,
+        "Prediksi": pred_inverse
+    }).sort_values("Tanggal")
+
+    st.dataframe(hasil, use_container_width=True)
+
+    # RMSE
+    rmse = np.sqrt(np.mean((actual_inverse - pred_inverse)**2))
+    st.metric("RMSE", f"{rmse:.3f}")
+
+
+    # ===== SMOOTH BIAR BAGUS =====
+    smooth_actual = hasil["Aktual"].rolling(7, center=True).mean()
+    smooth_pred = hasil["Prediksi"].rolling(7, center=True).mean()
+
+    fig, ax = plt.subplots(figsize=(16,6), dpi=140)
+
+    ax.plot(hasil["Tanggal"], smooth_actual, label="Aktual", linewidth=2.8)
+    ax.plot(hasil["Tanggal"], smooth_pred, label="Prediksi", linewidth=2.8, linestyle="--")
+
+    ax.fill_between(
+        hasil["Tanggal"],
+        smooth_actual,
+        smooth_pred,
+        alpha=0.15
+    )
+
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+
+    ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan", fontsize=18, fontweight="bold")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (mm)")
+    ax.legend()
+
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    st.pyplot(fig, use_container_width=True)
+
+
+# =========================
+# PREDIKSI MASA DEPAN
 # =========================
 
 elif menu == "Prediksi Masa Depan":
@@ -244,7 +235,7 @@ elif menu == "Prediksi Masa Depan":
     df = st.session_state.df_interpolasi
 
     if model is None or scaler is None or df is None:
-        st.error("Load dataset, normalisasi, dan model dulu")
+        st.error("Load dulu semua")
         st.stop()
 
     n = st.selectbox("Jumlah hari prediksi", [7,14,30,90,180,365])
@@ -287,11 +278,7 @@ elif menu == "Prediksi Masa Depan":
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (mm)")
 
-    ax.grid(True, linestyle="--", alpha=0.5)
-
     plt.xticks(rotation=45)
     plt.tight_layout()
 
     st.pyplot(fig, use_container_width=True)
-
-
