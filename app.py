@@ -6,6 +6,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import load_model
@@ -19,14 +20,14 @@ import tensorflow as tf
 FITUR = ["TAVG", "RH_AVG", "RR"]
 TIMESTEP = 25
 
-plt.style.use("seaborn-v0_8-darkgrid")  # style grafik bagus
+plt.style.use("seaborn-v0_8-darkgrid")
+
+st.set_page_config(layout="wide")
 
 
 # =========================
 # TITLE
 # =========================
-
-st.set_page_config(layout="wide")
 
 st.title("🌧️ Prediksi Curah Hujan Menggunakan LSTM")
 
@@ -63,7 +64,7 @@ for k in keys:
 
 
 # =========================
-# MENU 1 — DATASET
+# MENU DATASET
 # =========================
 
 if menu == "Dataset":
@@ -82,11 +83,9 @@ if menu == "Dataset":
     st.subheader("Dataset Asli")
     st.dataframe(df, use_container_width=True)
 
-    st.success("Dataset berhasil di-load")
-
 
 # =========================
-# MENU 2 — INTERPOLASI
+# INTERPOLASI
 # =========================
 
 elif menu == "Interpolasi Linear":
@@ -107,11 +106,9 @@ elif menu == "Interpolasi Linear":
     st.subheader("Data Setelah Interpolasi")
     st.dataframe(df_interp, use_container_width=True)
 
-    st.success("Interpolasi berhasil")
-
 
 # =========================
-# MENU 3 — NORMALISASI
+# NORMALISASI
 # =========================
 
 elif menu == "Normalisasi":
@@ -122,7 +119,7 @@ elif menu == "Normalisasi":
         st.error("Lakukan interpolasi dulu")
         st.stop()
 
-    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaler = MinMaxScaler()
     scaled = scaler.fit_transform(df[FITUR])
 
     st.session_state.scaler = scaler
@@ -134,11 +131,9 @@ elif menu == "Normalisasi":
     st.subheader("Data Setelah Normalisasi")
     st.dataframe(df_scaled, use_container_width=True)
 
-    st.success("Normalisasi berhasil")
-
 
 # =========================
-# MENU 4 — LOAD MODEL
+# LOAD MODEL
 # =========================
 
 elif menu == "Load Model":
@@ -173,7 +168,7 @@ elif menu == "Load Model":
 
 
 # =========================
-# MENU 5 — PREDIKSI TEST
+# PREDIKSI TEST
 # =========================
 
 elif menu == "Prediksi Test":
@@ -188,10 +183,8 @@ elif menu == "Prediksi Test":
         st.error("Load dataset, normalisasi, dan model dulu")
         st.stop()
 
-    # Prediksi
     pred = model.predict(x_test, verbose=0)
 
-    # Inverse scaling
     dummy_pred = np.zeros((len(pred), len(FITUR)))
     dummy_pred[:, 2] = pred.flatten()
     pred_inverse = scaler.inverse_transform(dummy_pred)[:, 2]
@@ -200,58 +193,50 @@ elif menu == "Prediksi Test":
     dummy_actual[:, 2] = y_test.flatten()
     actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
 
-    # Sinkronisasi tanggal
     tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
 
     hasil = pd.DataFrame({
         "Tanggal": tanggal,
-        "Aktual RR": actual_inverse,
-        "Prediksi RR": pred_inverse
+        "Aktual": actual_inverse,
+        "Prediksi": pred_inverse
     }).sort_values("Tanggal")
 
     st.subheader("Hasil Prediksi Test")
     st.dataframe(hasil, use_container_width=True)
 
-    # RMSE
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
     st.metric("RMSE", f"{rmse:.3f}")
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(14, 6))
+    # =========================
+    # PLOT BAGUS
+    # =========================
 
-    ax.plot(
-        hasil["Tanggal"],
-        hasil["Aktual RR"],
-        label="Aktual",
-        linewidth=2.5
-    )
+    fig, ax = plt.subplots(figsize=(14, 6), dpi=120)
 
-    ax.plot(
-        hasil["Tanggal"],
-        hasil["Prediksi RR"],
-        label="Prediksi",
-        linewidth=2.5
-    )
+    ax.plot(hasil["Tanggal"], hasil["Aktual"], label="Aktual", linewidth=2.5)
+    ax.plot(hasil["Tanggal"], hasil["Prediksi"], label="Prediksi", linewidth=2.5)
 
-    ax.set_title(
-        "Perbandingan Aktual vs Prediksi Curah Hujan",
-        fontsize=16,
-        fontweight="bold"
-    )
+    # FORMAT TANGGAL OTOMATIS
+    locator = mdates.AutoDateLocator()
+    formatter = mdates.ConciseDateFormatter(locator)
 
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(formatter)
+
+    ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan", fontsize=16, fontweight="bold")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
+
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.6)
 
-    plt.xticks(rotation=45)
     plt.tight_layout()
 
     st.pyplot(fig, use_container_width=True)
 
 
 # =========================
-# MENU 6 — PREDIKSI MASA DEPAN
+# PREDIKSI MASA DEPAN
 # =========================
 
 elif menu == "Prediksi Masa Depan":
@@ -296,33 +281,28 @@ elif menu == "Prediksi Masa Depan":
 
     hasil_future = pd.DataFrame({
         "Tanggal": tanggal_future,
-        "Prediksi RR": future_inverse
+        "Prediksi": future_inverse
     })
 
     st.subheader("Prediksi Masa Depan")
     st.dataframe(hasil_future, use_container_width=True)
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(figsize=(14, 6), dpi=120)
 
-    ax.plot(
-        tanggal_future,
-        future_inverse,
-        marker="o",
-        linewidth=2.5
-    )
+    ax.plot(tanggal_future, future_inverse, marker="o", linewidth=2.5)
 
-    ax.set_title(
-        "Prediksi Curah Hujan Masa Depan",
-        fontsize=16,
-        fontweight="bold"
-    )
+    locator = mdates.AutoDateLocator()
+    formatter = mdates.ConciseDateFormatter(locator)
 
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(formatter)
+
+    ax.set_title("Prediksi Curah Hujan Masa Depan", fontsize=16, fontweight="bold")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
+
     ax.grid(True, linestyle="--", alpha=0.6)
 
-    plt.xticks(rotation=45)
     plt.tight_layout()
 
     st.pyplot(fig, use_container_width=True)
