@@ -1,4 +1,3 @@
-```python
 # =========================
 # IMPORT LIBRARY
 # =========================
@@ -304,3 +303,4 @@ elif menu == "Prediksi Masa Depan":
 
     st.pyplot(fig)
 ```
+
