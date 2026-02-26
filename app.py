@@ -1,171 +1,338 @@
+# =========================
+# IMPORT LIBRARY
+# =========================
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import load_model
+import tensorflow as tf
 
-st.set_page_config(page_title="Prediksi Curah Hujan", layout="wide")
 
-st.title("Aplikasi Prediksi Curah Hujan")
+# =========================
+# CONFIG
+# =========================
 
-menu = st.sidebar.selectbox(
+FITUR = ["TAVG", "RH_AVG", "RR"]
+TIMESTEP = 25
+
+plt.style.use("seaborn-v0_8-darkgrid")
+
+st.set_page_config(layout="wide")
+
+
+# =========================
+# TITLE
+# =========================
+
+st.title("🌧️ Prediksi Curah Hujan Menggunakan LSTM")
+
+menu = st.sidebar.radio(
     "Menu",
-    ["Upload Data", "Prediksi & Evaluasi", "Prediksi Masa Depan"]
+    [
+        "Dataset",
+        "Interpolasi Linear",
+        "Normalisasi",
+        "Load Model",
+        "Prediksi Test",
+        "Prediksi Masa Depan"
+    ]
 )
 
-# =============================
-# UPLOAD DATA
-# =============================
-if menu == "Upload Data":
 
-    st.header("Upload Dataset")
+# =========================
+# SESSION STATE
+# =========================
 
-    file = st.file_uploader("Upload file CSV", type=["csv"])
+keys = [
+    "df_asli",
+    "df_interpolasi",
+    "scaled_data",
+    "scaler",
+    "model",
+    "x_test",
+    "y_test"
+]
 
-    if file is not None:
-        data = pd.read_csv(file)
-
-        st.success("Data berhasil diupload")
-        st.dataframe(data)
-
-        st.session_state["data"] = data
+for k in keys:
+    if k not in st.session_state:
+        st.session_state[k] = None
 
 
-# =============================
-# PREDIKSI & EVALUASI
-# =============================
-elif menu == "Prediksi & Evaluasi":
+# =========================
+# MENU 1 — DATASET
+# =========================
 
-    st.header("Prediksi & Evaluasi Model")
+if menu == "Dataset":
 
-    if "data" not in st.session_state:
-        st.warning("Silakan upload data dulu")
-    else:
+    df = pd.read_excel("dataset_skripsi (3).xlsx")
+    df.columns = df.columns.str.strip()
 
-        data = st.session_state["data"]
+    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
+    df = df.dropna(subset=["Tanggal"])
 
-        target_column = st.selectbox(
-            "Pilih Kolom Target (Curah Hujan)",
-            data.columns
+    df[FITUR] = df[FITUR].apply(pd.to_numeric, errors="coerce")
+    df = df.reset_index(drop=True)
+
+    st.session_state.df_asli = df
+
+    st.subheader("Dataset Asli")
+    st.dataframe(df, use_container_width=True)
+
+    st.success("Dataset berhasil di-load")
+
+
+# =========================
+# MENU 2 — INTERPOLASI
+# =========================
+
+elif menu == "Interpolasi Linear":
+
+    df = st.session_state.df_asli
+
+    if df is None:
+        st.error("Load Dataset dulu")
+        st.stop()
+
+    df_interp = df.copy()
+    df_interp[FITUR] = df_interp[FITUR].interpolate(method="linear")
+    df_interp[FITUR] = df_interp[FITUR].bfill()
+    df_interp[FITUR] = df_interp[FITUR].ffill()
+
+    st.session_state.df_interpolasi = df_interp
+
+    st.subheader("Data Setelah Interpolasi")
+    st.dataframe(df_interp, use_container_width=True)
+
+    st.success("Interpolasi berhasil")
+
+
+# =========================
+# MENU 3 — NORMALISASI
+# =========================
+
+elif menu == "Normalisasi":
+
+    df = st.session_state.df_interpolasi
+
+    if df is None:
+        st.error("Lakukan interpolasi dulu")
+        st.stop()
+
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled = scaler.fit_transform(df[FITUR])
+
+    st.session_state.scaler = scaler
+    st.session_state.scaled_data = scaled
+
+    df_scaled = pd.DataFrame(scaled, columns=FITUR)
+    df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
+
+    st.subheader("Data Setelah Normalisasi")
+    st.dataframe(df_scaled, use_container_width=True)
+
+    st.success("Normalisasi berhasil")
+
+
+# =========================
+# MENU 4 — LOAD MODEL
+# =========================
+
+elif menu == "Load Model":
+
+    if st.button("Load Model"):
+
+        model = load_model(
+            "model_34_ep100_lr0.0001_ts25.h5",
+            compile=False
         )
 
-        if st.button("Proses Prediksi"):
+        model.compile(
+            optimizer="adam",
+            loss=tf.keras.losses.MeanSquaredError(),
+            metrics=["mae"]
+        )
 
-            df = data.copy()
+        x_test = pd.read_csv("X_test_34.csv").values
+        y_test = pd.read_csv("y_test_34.csv").values
 
-            # Buat fitur lag sederhana
-            df["lag1"] = df[target_column].shift(1)
-            df["lag2"] = df[target_column].shift(2)
-            df["lag3"] = df[target_column].shift(3)
+        x_test = x_test.reshape(
+            x_test.shape[0],
+            TIMESTEP,
+            len(FITUR)
+        )
 
-            df = df.dropna()
+        st.session_state.model = model
+        st.session_state.x_test = x_test
+        st.session_state.y_test = y_test
 
-            X = df[["lag1", "lag2", "lag3"]]
-            y = df[target_column]
-
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, shuffle=False
-            )
-
-            model = RandomForestRegressor(n_estimators=200, random_state=42)
-            model.fit(X_train, y_train)
-
-            y_pred = model.predict(X_test)
-
-            rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-
-            st.metric("Nilai RMSE", f"{rmse:.3f}")
-
-            # =============================
-            # Grafik Aktual vs Prediksi
-            # =============================
-            fig, ax = plt.subplots(figsize=(12, 5))
-
-            ax.plot(y_test.values, label="Aktual", marker="o")
-            ax.plot(y_pred, label="Prediksi", marker="s")
-
-            ax.set_title("Perbandingan Aktual vs Prediksi")
-            ax.set_xlabel("Index Data")
-            ax.set_ylabel("Curah Hujan")
-            ax.legend()
-
-            st.pyplot(fig)
-
-            # Simpan model & data
-            st.session_state["model"] = model
-            st.session_state["last_data"] = df
-            st.session_state["target"] = target_column
+        st.success("Model berhasil di-load")
 
 
-# =============================
-# PREDIKSI MASA DEPAN
-# =============================
+# =========================
+# MENU 5 — PREDIKSI TEST
+# =========================
+
+elif menu == "Prediksi Test":
+
+    model = st.session_state.model
+    scaler = st.session_state.scaler
+    x_test = st.session_state.x_test
+    y_test = st.session_state.y_test
+    df = st.session_state.df_interpolasi
+
+    if model is None or scaler is None or df is None:
+        st.error("Load dataset, normalisasi, dan model dulu")
+        st.stop()
+
+    pred = model.predict(x_test, verbose=0)
+
+    # Inverse scaling
+    dummy_pred = np.zeros((len(pred), len(FITUR)))
+    dummy_pred[:, 2] = pred.flatten()
+    pred_inverse = scaler.inverse_transform(dummy_pred)[:, 2]
+
+    dummy_actual = np.zeros((len(y_test), len(FITUR)))
+    dummy_actual[:, 2] = y_test.flatten()
+    actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
+
+    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
+
+    hasil = pd.DataFrame({
+        "Tanggal": tanggal,
+        "Aktual RR": actual_inverse,
+        "Prediksi RR": pred_inverse
+    }).sort_values("Tanggal")
+
+    st.subheader("Hasil Prediksi Test")
+    st.dataframe(hasil, use_container_width=True)
+
+    # RMSE
+    rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
+    st.metric("RMSE", f"{rmse:.3f}")
+
+    # ======================
+    # GRAFIK BAGUS
+    # ======================
+
+    smooth_actual = hasil["Aktual RR"].rolling(7, center=True).mean()
+    smooth_pred = hasil["Prediksi RR"].rolling(7, center=True).mean()
+
+    fig, ax = plt.subplots(figsize=(16,6), dpi=140)
+
+    ax.plot(
+        hasil["Tanggal"],
+        smooth_actual,
+        label="Aktual",
+        linewidth=2.8
+    )
+
+    ax.plot(
+        hasil["Tanggal"],
+        smooth_pred,
+        label="Prediksi",
+        linewidth=2.8,
+        linestyle="--"
+    )
+
+    ax.fill_between(
+        hasil["Tanggal"],
+        smooth_actual,
+        smooth_pred,
+        alpha=0.15
+    )
+
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+
+    ax.set_title(
+        "Perbandingan Aktual vs Prediksi Curah Hujan",
+        fontsize=18,
+        fontweight="bold"
+    )
+
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (mm)")
+    ax.legend()
+    ax.grid(True, linestyle="--", alpha=0.3)
+
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    st.pyplot(fig, use_container_width=True)
+
+
+# =========================
+# MENU 6 — PREDIKSI MASA DEPAN
+# =========================
+
 elif menu == "Prediksi Masa Depan":
 
-    st.header("Prediksi Curah Hujan Masa Depan")
+    model = st.session_state.model
+    scaler = st.session_state.scaler
+    x_test = st.session_state.x_test
+    df = st.session_state.df_interpolasi
 
-    if "model" not in st.session_state:
-        st.warning("Silakan lakukan prediksi terlebih dahulu")
-    else:
+    if model is None or scaler is None or df is None:
+        st.error("Load dataset, normalisasi, dan model dulu")
+        st.stop()
 
-        model = st.session_state["model"]
-        df = st.session_state["last_data"]
-        target_column = st.session_state["target"]
+    n = st.selectbox("Jumlah hari prediksi", [1, 7, 14, 30, 90, 180, 365])
 
-        n_future = st.number_input(
-            "Jumlah Periode Prediksi",
-            min_value=1,
-            max_value=24,
-            value=6
+    last = x_test[-1:]
+    future_scaled = []
+
+    for _ in range(n):
+
+        pred = model.predict(last, verbose=0)
+        future_scaled.append(pred[0][0])
+
+        new_row = last[:, -1, :].copy()
+        new_row[0][2] = pred[0][0]
+
+        last = np.concatenate(
+            [last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))],
+            axis=1
         )
 
-        if st.button("Prediksi"):
+    future_scaled = np.array(future_scaled)
 
-            last_values = list(df[target_column].values[-3:])
-            predictions = []
+    dummy = np.zeros((n, len(FITUR)))
+    dummy[:, 2] = future_scaled
+    future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
-            for _ in range(n_future):
+    tanggal_future = pd.date_range(
+        start=df["Tanggal"].iloc[-1],
+        periods=n + 1
+    )[1:]
 
-                X_input = np.array(last_values[-3:]).reshape(1, -1)
-                pred = model.predict(X_input)[0]
+    hasil_future = pd.DataFrame({
+        "Tanggal": tanggal_future,
+        "Prediksi RR": future_inverse
+    })
 
-                predictions.append(pred)
-                last_values.append(pred)
+    st.subheader("Prediksi Masa Depan")
+    st.dataframe(hasil_future, use_container_width=True)
 
-            future_df = pd.DataFrame({
-                "Periode": range(1, n_future + 1),
-                "Prediksi Curah Hujan": predictions
-            })
+    fig, ax = plt.subplots(figsize=(16,6), dpi=140)
 
-            st.subheader("Tabel Hasil Prediksi")
-            st.dataframe(future_df, use_container_width=True)
+    ax.plot(
+        tanggal_future,
+        future_inverse,
+        marker="o",
+        linewidth=2.5
+    )
 
-            # =============================
-            # Grafik Prediksi Masa Depan
-            # =============================
-            fig2, ax2 = plt.subplots(figsize=(12, 5))
+    ax.set_title("Prediksi Curah Hujan Masa Depan", fontsize=18, fontweight="bold")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (mm)")
+    ax.grid(True, linestyle="--", alpha=0.3)
 
-            ax2.plot(future_df["Periode"],
-                     future_df["Prediksi Curah Hujan"],
-                     marker="o",
-                     label="Prediksi")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
 
-            ax2.set_title("Prediksi Curah Hujan Masa Depan")
-            ax2.set_xlabel("Periode")
-            ax2.set_ylabel("Curah Hujan")
-            ax2.legend()
-
-            st.pyplot(fig2)
-
-            # Download
-            csv = future_df.to_csv(index=False).encode("utf-8")
-
-            st.download_button(
-                label="Download Hasil Prediksi",
-                data=csv,
-                file_name="prediksi_curah_hujan.csv",
-                mime="text/csv"
-            )
+    st.pyplot(fig, use_container_width=True)
