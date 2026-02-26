@@ -19,16 +19,12 @@ import tensorflow as tf
 FITUR = ["TAVG", "RH_AVG", "RR"]
 TIMESTEP = 25
 
-plt.style.use("seaborn-v0_8-darkgrid")  # style grafik bagus
-
 
 # =========================
 # TITLE
 # =========================
 
-st.set_page_config(layout="wide")
-
-st.title("🌧️ Prediksi Curah Hujan Menggunakan LSTM")
+st.title("PREDIKSI CURAH HUJAN MENGGUNAKAN LSTM")
 
 menu = st.sidebar.radio(
     "Menu",
@@ -79,8 +75,8 @@ if menu == "Dataset":
 
     st.session_state.df_asli = df
 
-    st.subheader("Dataset Asli")
-    st.dataframe(df, use_container_width=True)
+    st.write("Dataset Asli:")
+    st.dataframe(df)
 
     st.success("Dataset berhasil di-load")
 
@@ -104,8 +100,8 @@ elif menu == "Interpolasi Linear":
 
     st.session_state.df_interpolasi = df_interp
 
-    st.subheader("Data Setelah Interpolasi")
-    st.dataframe(df_interp, use_container_width=True)
+    st.write("Data setelah interpolasi:")
+    st.dataframe(df_interp)
 
     st.success("Interpolasi berhasil")
 
@@ -131,8 +127,8 @@ elif menu == "Normalisasi":
     df_scaled = pd.DataFrame(scaled, columns=FITUR)
     df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
 
-    st.subheader("Data Setelah Normalisasi")
-    st.dataframe(df_scaled, use_container_width=True)
+    st.write("Data setelah normalisasi:")
+    st.dataframe(df_scaled)
 
     st.success("Normalisasi berhasil")
 
@@ -207,30 +203,44 @@ elif menu == "Prediksi Test":
         "Tanggal": tanggal,
         "Aktual RR": actual_inverse,
         "Prediksi RR": pred_inverse
-    }).sort_values("Tanggal")
+    })
 
-    st.subheader("Hasil Prediksi Test")
-    st.dataframe(hasil, use_container_width=True)
+    st.write("Hasil Prediksi Test:")
+    st.dataframe(hasil)
 
     # RMSE
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
-    st.metric("RMSE", f"{rmse:.3f}")
+    st.success(f"RMSE: {rmse:.3f}")
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(14, 6))
+    # =====================
+    # SMOOTHING BIAR HALUS
+    # =====================
+    hasil["Aktual Smooth"] = hasil["Aktual RR"].rolling(window=5, center=True).mean()
+    hasil["Prediksi Smooth"] = hasil["Prediksi RR"].rolling(window=5, center=True).mean()
 
+    # =====================
+    # PLOT BAGUS
+    # =====================
+    fig, ax = plt.subplots(figsize=(15, 6))
+
+    # garis asli transparan
+    ax.plot(hasil["Tanggal"], hasil["Aktual RR"], alpha=0.3)
+    ax.plot(hasil["Tanggal"], hasil["Prediksi RR"], alpha=0.3)
+
+    # garis utama tebal
     ax.plot(
         hasil["Tanggal"],
-        hasil["Aktual RR"],
-        label="Aktual",
-        linewidth=2.5
+        hasil["Aktual Smooth"],
+        linewidth=3,
+        label="Aktual"
     )
 
     ax.plot(
         hasil["Tanggal"],
-        hasil["Prediksi RR"],
-        label="Prediksi",
-        linewidth=2.5
+        hasil["Prediksi Smooth"],
+        linewidth=3,
+        linestyle="--",
+        label="Prediksi"
     )
 
     ax.set_title(
@@ -242,7 +252,8 @@ elif menu == "Prediksi Test":
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
     ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
+
+    ax.grid(True, linestyle="--", alpha=0.5)
 
     plt.xticks(rotation=45)
     plt.tight_layout()
@@ -299,28 +310,23 @@ elif menu == "Prediksi Masa Depan":
         "Prediksi RR": future_inverse
     })
 
-    st.subheader("Prediksi Masa Depan")
-    st.dataframe(hasil_future, use_container_width=True)
+    st.write("Prediksi Masa Depan:")
+    st.dataframe(hasil_future)
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(14, 6))
+    fig, ax = plt.subplots(figsize=(15, 6))
 
     ax.plot(
         tanggal_future,
         future_inverse,
-        marker="o",
-        linewidth=2.5
+        linewidth=3,
+        marker="o"
     )
 
-    ax.set_title(
-        "Prediksi Curah Hujan Masa Depan",
-        fontsize=16,
-        fontweight="bold"
-    )
-
+    ax.set_title("Prediksi Curah Hujan Masa Depan")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
-    ax.grid(True, linestyle="--", alpha=0.6)
+
+    ax.grid(True, linestyle="--", alpha=0.5)
 
     plt.xticks(rotation=45)
     plt.tight_layout()
