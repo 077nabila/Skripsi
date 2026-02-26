@@ -230,6 +230,8 @@ plt.tight_layout()
 
 st.pyplot(fig, use_container_width=True)
 
+)
+
 # =========================
 # MENU PREDIKSI MASA DEPAN
 # =========================
@@ -291,4 +293,5 @@ elif menu == "Prediksi Masa Depan":
     plt.tight_layout()
 
     st.pyplot(fig, use_container_width=True)
+
 
