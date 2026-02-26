@@ -19,6 +19,7 @@ import tensorflow as tf
 FITUR = ["TAVG", "RH_AVG", "RR"]
 TIMESTEP = 25
 
+st.set_page_config(layout="wide")
 
 # =========================
 # TITLE
@@ -184,10 +185,8 @@ elif menu == "Prediksi Test":
         st.error("Load dataset, normalisasi, dan model dulu")
         st.stop()
 
-    # Prediksi
     pred = model.predict(x_test, verbose=0)
 
-    # Inverse scaling
     dummy_pred = np.zeros((len(pred), len(FITUR)))
     dummy_pred[:, 2] = pred.flatten()
     pred_inverse = scaler.inverse_transform(dummy_pred)[:, 2]
@@ -196,63 +195,128 @@ elif menu == "Prediksi Test":
     dummy_actual[:, 2] = y_test.flatten()
     actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
 
-    # Sinkronisasi tanggal
-    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
+    tanggal = df["Tanggal"].iloc[
+        TIMESTEP: TIMESTEP + len(actual_inverse)
+    ].reset_index(drop=True)
 
     hasil = pd.DataFrame({
         "Tanggal": tanggal,
         "Aktual RR": actual_inverse,
         "Prediksi RR": pred_inverse
-    })
+    }).sort_values("Tanggal")
 
     st.write("Hasil Prediksi Test:")
     st.dataframe(hasil)
 
-    # RMSE
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
     st.success(f"RMSE: {rmse:.3f}")
 
     # =====================
-    # SMOOTHING BIAR HALUS
+    # PILIH JENIS GRAFIK
     # =====================
-    hasil["Aktual Smooth"] = hasil["Aktual RR"].rolling(window=5, center=True).mean()
-    hasil["Prediksi Smooth"] = hasil["Prediksi RR"].rolling(window=5, center=True).mean()
-
-    # =====================
-    # PLOT BAGUS
-    # =====================
-    fig, ax = plt.subplots(figsize=(15, 6))
-
-    # garis asli transparan
-    ax.plot(hasil["Tanggal"], hasil["Aktual RR"], alpha=0.3)
-    ax.plot(hasil["Tanggal"], hasil["Prediksi RR"], alpha=0.3)
-
-    # garis utama tebal
-    ax.plot(
-        hasil["Tanggal"],
-        hasil["Aktual Smooth"],
-        linewidth=3,
-        label="Aktual"
+    jenis = st.radio(
+        "Pilih Tampilan Grafik",
+        ["Harian", "Smooth", "Bulanan"]
     )
 
-    ax.plot(
-        hasil["Tanggal"],
-        hasil["Prediksi Smooth"],
-        linewidth=3,
-        linestyle="--",
-        label="Prediksi"
-    )
+    # =====================
+    # GRAFIK HARIAN
+    # =====================
+    if jenis == "Harian":
 
-    ax.set_title(
-        "Perbandingan Aktual vs Prediksi Curah Hujan",
-        fontsize=16,
-        fontweight="bold"
-    )
+        fig, ax = plt.subplots(figsize=(16, 6))
 
+        ax.plot(
+            hasil["Tanggal"],
+            hasil["Aktual RR"],
+            label="Aktual",
+            linewidth=2
+        )
+
+        ax.plot(
+            hasil["Tanggal"],
+            hasil["Prediksi RR"],
+            label="Prediksi",
+            linewidth=2,
+            linestyle="--"
+        )
+
+    # =====================
+    # GRAFIK SMOOTH
+    # =====================
+    elif jenis == "Smooth":
+
+        window = 15
+
+        hasil["Aktual Smooth"] = (
+            hasil["Aktual RR"]
+            .rolling(window=window, center=True)
+            .mean()
+        )
+
+        hasil["Prediksi Smooth"] = (
+            hasil["Prediksi RR"]
+            .rolling(window=window, center=True)
+            .mean()
+        )
+
+        fig, ax = plt.subplots(figsize=(16, 6))
+
+        ax.plot(
+            hasil["Tanggal"],
+            hasil["Aktual RR"],
+            color="gray",
+            alpha=0.2
+        )
+
+        ax.plot(
+            hasil["Tanggal"],
+            hasil["Aktual Smooth"],
+            linewidth=3,
+            label="Aktual"
+        )
+
+        ax.plot(
+            hasil["Tanggal"],
+            hasil["Prediksi Smooth"],
+            linewidth=3,
+            linestyle="--",
+            label="Prediksi"
+        )
+
+    # =====================
+    # GRAFIK BULANAN
+    # =====================
+    else:
+
+        hasil_bulanan = (
+            hasil.set_index("Tanggal")
+            .resample("M")
+            .mean()
+            .reset_index()
+        )
+
+        fig, ax = plt.subplots(figsize=(16, 6))
+
+        ax.plot(
+            hasil_bulanan["Tanggal"],
+            hasil_bulanan["Aktual RR"],
+            linewidth=3,
+            label="Aktual"
+        )
+
+        ax.plot(
+            hasil_bulanan["Tanggal"],
+            hasil_bulanan["Prediksi RR"],
+            linewidth=3,
+            linestyle="--",
+            label="Prediksi"
+        )
+
+    ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
     ax.legend()
-
     ax.grid(True, linestyle="--", alpha=0.5)
 
     plt.xticks(rotation=45)
@@ -313,19 +377,18 @@ elif menu == "Prediksi Masa Depan":
     st.write("Prediksi Masa Depan:")
     st.dataframe(hasil_future)
 
-    fig, ax = plt.subplots(figsize=(15, 6))
+    fig, ax = plt.subplots(figsize=(16, 6))
 
     ax.plot(
         tanggal_future,
         future_inverse,
-        linewidth=3,
-        marker="o"
+        marker="o",
+        linewidth=3
     )
 
     ax.set_title("Prediksi Curah Hujan Masa Depan")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (RR)")
-
     ax.grid(True, linestyle="--", alpha=0.5)
 
     plt.xticks(rotation=45)
