@@ -20,7 +20,7 @@ import tensorflow as tf
 FITUR = ["TAVG", "RH_AVG", "RR"]
 TIMESTEP = 25
 
-plt.style.use("seaborn-v0_8-darkgrid")
+plt.style.use("seaborn-v0_8-whitegrid")
 
 st.set_page_config(layout="wide")
 
@@ -76,16 +76,16 @@ if menu == "Dataset":
     df = df.dropna(subset=["Tanggal"])
 
     df[FITUR] = df[FITUR].apply(pd.to_numeric, errors="coerce")
-    df = df.reset_index(drop=True)
+    df = df.sort_values("Tanggal").reset_index(drop=True)
 
     st.session_state.df_asli = df
 
-    st.subheader("Dataset Asli")
     st.dataframe(df, use_container_width=True)
+    st.success("Dataset berhasil di-load")
 
 
 # =========================
-# INTERPOLASI
+# MENU INTERPOLASI
 # =========================
 
 elif menu == "Interpolasi Linear":
@@ -97,18 +97,19 @@ elif menu == "Interpolasi Linear":
         st.stop()
 
     df_interp = df.copy()
-    df_interp[FITUR] = df_interp[FITUR].interpolate(method="linear")
+
+    df_interp[FITUR] = df_interp[FITUR].interpolate("linear")
     df_interp[FITUR] = df_interp[FITUR].bfill()
     df_interp[FITUR] = df_interp[FITUR].ffill()
 
     st.session_state.df_interpolasi = df_interp
 
-    st.subheader("Data Setelah Interpolasi")
     st.dataframe(df_interp, use_container_width=True)
+    st.success("Interpolasi berhasil")
 
 
 # =========================
-# NORMALISASI
+# MENU NORMALISASI
 # =========================
 
 elif menu == "Normalisasi":
@@ -128,12 +129,12 @@ elif menu == "Normalisasi":
     df_scaled = pd.DataFrame(scaled, columns=FITUR)
     df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
 
-    st.subheader("Data Setelah Normalisasi")
     st.dataframe(df_scaled, use_container_width=True)
+    st.success("Normalisasi berhasil")
 
 
 # =========================
-# LOAD MODEL
+# MENU LOAD MODEL
 # =========================
 
 elif menu == "Load Model":
@@ -168,7 +169,7 @@ elif menu == "Load Model":
 
 
 # =========================
-# PREDIKSI TEST
+# MENU PREDIKSI TEST
 # =========================
 
 elif menu == "Prediksi Test":
@@ -193,50 +194,49 @@ elif menu == "Prediksi Test":
     dummy_actual[:, 2] = y_test.flatten()
     actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
 
-    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
+    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)]
 
     hasil = pd.DataFrame({
         "Tanggal": tanggal,
-        "Aktual": actual_inverse,
-        "Prediksi": pred_inverse
-    }).sort_values("Tanggal")
+        "Aktual RR": actual_inverse,
+        "Prediksi RR": pred_inverse
+    })
 
-    st.subheader("Hasil Prediksi Test")
+    hasil = hasil.sort_values("Tanggal").reset_index(drop=True)
+
     st.dataframe(hasil, use_container_width=True)
 
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
     st.metric("RMSE", f"{rmse:.3f}")
 
-    # =========================
-    # PLOT BAGUS
-    # =========================
+    # ===== SMOOTHING =====
+    smooth_actual = hasil["Aktual RR"].rolling(7, center=True).mean()
+    smooth_pred = hasil["Prediksi RR"].rolling(7, center=True).mean()
 
-    fig, ax = plt.subplots(figsize=(14, 6), dpi=120)
+    # ===== PLOT =====
+    fig, ax = plt.subplots(figsize=(14,6), dpi=120)
 
-    ax.plot(hasil["Tanggal"], hasil["Aktual"], label="Aktual", linewidth=2.5)
-    ax.plot(hasil["Tanggal"], hasil["Prediksi"], label="Prediksi", linewidth=2.5)
+    ax.plot(hasil["Tanggal"], smooth_actual, label="Aktual", linewidth=2.5)
+    ax.plot(hasil["Tanggal"], smooth_pred, label="Prediksi", linewidth=2.5)
 
-    # FORMAT TANGGAL OTOMATIS
-    locator = mdates.AutoDateLocator()
-    formatter = mdates.ConciseDateFormatter(locator)
-
-    ax.xaxis.set_major_locator(locator)
-    ax.xaxis.set_major_formatter(formatter)
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
 
     ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan", fontsize=16, fontweight="bold")
     ax.set_xlabel("Tanggal")
-    ax.set_ylabel("Curah Hujan (RR)")
+    ax.set_ylabel("Curah Hujan (mm)")
 
     ax.legend()
-    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.grid(True, linestyle="--", alpha=0.5)
 
+    plt.xticks(rotation=45)
     plt.tight_layout()
 
     st.pyplot(fig, use_container_width=True)
 
 
 # =========================
-# PREDIKSI MASA DEPAN
+# MENU PREDIKSI MASA DEPAN
 # =========================
 
 elif menu == "Prediksi Masa Depan":
@@ -250,7 +250,7 @@ elif menu == "Prediksi Masa Depan":
         st.error("Load dataset, normalisasi, dan model dulu")
         st.stop()
 
-    n = st.selectbox("Jumlah hari prediksi", [1, 7, 14, 30, 90, 180, 365])
+    n = st.selectbox("Jumlah hari prediksi", [7,14,30,90,180,365])
 
     last = x_test[-1:]
     future_scaled = []
@@ -264,45 +264,35 @@ elif menu == "Prediksi Masa Depan":
         new_row[0][2] = pred[0][0]
 
         last = np.concatenate(
-            [last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))],
+            [last[:,1:,:], new_row.reshape(1,1,len(FITUR))],
             axis=1
         )
 
     future_scaled = np.array(future_scaled)
 
     dummy = np.zeros((n, len(FITUR)))
-    dummy[:, 2] = future_scaled
-    future_inverse = scaler.inverse_transform(dummy)[:, 2]
+    dummy[:,2] = future_scaled
+    future_inverse = scaler.inverse_transform(dummy)[:,2]
 
     tanggal_future = pd.date_range(
         start=df["Tanggal"].iloc[-1],
-        periods=n + 1
+        periods=n+1
     )[1:]
 
-    hasil_future = pd.DataFrame({
-        "Tanggal": tanggal_future,
-        "Prediksi": future_inverse
-    })
-
-    st.subheader("Prediksi Masa Depan")
-    st.dataframe(hasil_future, use_container_width=True)
-
-    fig, ax = plt.subplots(figsize=(14, 6), dpi=120)
+    fig, ax = plt.subplots(figsize=(14,6), dpi=120)
 
     ax.plot(tanggal_future, future_inverse, marker="o", linewidth=2.5)
 
-    locator = mdates.AutoDateLocator()
-    formatter = mdates.ConciseDateFormatter(locator)
-
-    ax.xaxis.set_major_locator(locator)
-    ax.xaxis.set_major_formatter(formatter)
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
 
     ax.set_title("Prediksi Curah Hujan Masa Depan", fontsize=16, fontweight="bold")
     ax.set_xlabel("Tanggal")
-    ax.set_ylabel("Curah Hujan (RR)")
+    ax.set_ylabel("Curah Hujan (mm)")
 
-    ax.grid(True, linestyle="--", alpha=0.6)
+    ax.grid(True, linestyle="--", alpha=0.5)
 
+    plt.xticks(rotation=45)
     plt.tight_layout()
 
     st.pyplot(fig, use_container_width=True)
