@@ -302,5 +302,3 @@ elif menu == "Prediksi Masa Depan":
     plt.xticks(rotation=45)
 
     st.pyplot(fig)
-```
-
