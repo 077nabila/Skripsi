@@ -113,7 +113,7 @@ if menu == "Dataset":
     # Simpan ke session
     st.session_state.df_asli = df
 
-    st.subheader("📄 Dataset Asli (Setelah Cleaning)")
+    st.subheader("📄 Dataset")
     st.write(f"Jumlah data: **{len(df)} baris**")
     st.write(f"Periode: **{df['Tanggal'].min().date()}** s.d. **{df['Tanggal'].max().date()}**")
     st.dataframe(df, use_container_width=True, height=600)
@@ -334,3 +334,4 @@ elif menu == "Prediksi Masa Depan":
     plt.xticks(rotation=45)
     plt.tight_layout()
     st.pyplot(fig, use_container_width=True)
+
