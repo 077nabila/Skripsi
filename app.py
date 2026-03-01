@@ -63,7 +63,7 @@ for k in keys:
 
 
 # =========================
-# MENU 1 — DATASET (UPLOAD)
+# MENU 1 — DATASET (UPLOAD) — FIX FINAL
 # =========================
 
 if menu == "Dataset":
@@ -93,20 +93,32 @@ if menu == "Dataset":
         st.error(f"Kolom berikut wajib ada di dataset: {kolom_hilang}")
         st.stop()
 
-    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce")
-    df = df.dropna(subset=["Tanggal"])
+    # Info awal
+    st.subheader("🔎 Info Awal Dataset")
+    st.write("Jumlah baris awal:", len(df))
 
+    # Parse tanggal (FIX PENTING)
+    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True)
+    gagal_parse = df["Tanggal"].isna().sum()
+
+    if gagal_parse > 0:
+        st.warning(f"Ada {gagal_parse} baris bukan data (keterangan) & akan dibuang.")
+
+    # Konversi numerik
     df[FITUR] = df[FITUR].apply(pd.to_numeric, errors="coerce")
-    df = df.reset_index(drop=True)
 
+    # Buang baris tanpa tanggal
+    df = df.dropna(subset=["Tanggal"]).reset_index(drop=True)
+
+    # Simpan ke session
     st.session_state.df_asli = df
 
-    st.subheader("📄 Dataset Asli")
+    st.subheader("📄 Dataset Asli (Setelah Cleaning)")
     st.write(f"Jumlah data: **{len(df)} baris**")
     st.write(f"Periode: **{df['Tanggal'].min().date()}** s.d. **{df['Tanggal'].max().date()}**")
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True, height=600)
 
-    st.success("Dataset berhasil di-upload & diproses")
+    st.success("Dataset berhasil di-upload & diproses (lengkap)")
 
 
 # =========================
