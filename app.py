@@ -63,7 +63,7 @@ for k in keys:
 
 
 # =========================
-# MENU 1 — DATASET (UPLOAD) — FIX FINAL
+# MENU 1 — DATASET
 # =========================
 
 if menu == "Dataset":
@@ -77,7 +77,6 @@ if menu == "Dataset":
         st.info("Silakan upload dataset terlebih dahulu.")
         st.stop()
 
-    # Baca file sesuai ekstensi
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
@@ -85,7 +84,6 @@ if menu == "Dataset":
 
     df.columns = df.columns.str.strip()
 
-    # Validasi kolom wajib
     kolom_wajib = ["Tanggal"] + FITUR
     kolom_hilang = [c for c in kolom_wajib if c not in df.columns]
 
@@ -93,24 +91,18 @@ if menu == "Dataset":
         st.error(f"Kolom berikut wajib ada di dataset: {kolom_hilang}")
         st.stop()
 
-    # Info awal
     st.subheader("🔎 Info Awal Dataset")
     st.write("Jumlah baris awal:", len(df))
 
-    # Parse tanggal (FIX PENTING)
     df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True)
     gagal_parse = df["Tanggal"].isna().sum()
 
     if gagal_parse > 0:
-        st.warning(f"Ada {gagal_parse} baris bukan data (keterangan) & akan dibuang.")
+        st.warning(f"Ada {gagal_parse} baris bukan data & dibuang.")
 
-    # Konversi numerik
     df[FITUR] = df[FITUR].apply(pd.to_numeric, errors="coerce")
-
-    # Buang baris tanpa tanggal
     df = df.dropna(subset=["Tanggal"]).reset_index(drop=True)
 
-    # Simpan ke session
     st.session_state.df_asli = df
 
     st.subheader("📄 Dataset")
@@ -118,11 +110,11 @@ if menu == "Dataset":
     st.write(f"Periode: **{df['Tanggal'].min().date()}** s.d. **{df['Tanggal'].max().date()}**")
     st.dataframe(df, use_container_width=True, height=600)
 
-    st.success("Dataset berhasil di-upload & diproses (lengkap)")
+    st.success("Dataset siap diproses")
 
 
 # =========================
-# MENU 2 — INTERPOLASI
+# MENU 2 — INTERPOLASI (FINAL)
 # =========================
 
 elif menu == "Interpolasi Linear":
@@ -133,16 +125,56 @@ elif menu == "Interpolasi Linear":
         st.error("Upload dataset dulu di menu Dataset.")
         st.stop()
 
+    st.subheader("🔎 Data yang Mengalami Missing Value")
+
+    mask_na = df[FITUR].isna().any(axis=1)
+    df_na = df.loc[mask_na, ["Tanggal"] + FITUR]
+
+    st.write(f"Jumlah baris yang memiliki missing value: **{len(df_na)} baris**")
+
+    if len(df_na) > 0:
+        st.dataframe(df_na, use_container_width=True)
+    else:
+        st.success("Tidak ada missing value")
+
+    st.subheader("📐 Metode Interpolasi Linear")
+    st.latex(r"x_t = x_a + (x_b - x_a) \times \frac{t - t_a}{t_b - t_a}")
+
     df_interp = df.copy()
     df_interp[FITUR] = df_interp[FITUR].interpolate(method="linear")
     df_interp[FITUR] = df_interp[FITUR].bfill().ffill()
 
     st.session_state.df_interpolasi = df_interp
 
-    st.subheader("📈 Data Setelah Interpolasi")
-    st.dataframe(df_interp, use_container_width=True)
+    if len(df_na) > 0:
+        st.subheader("📊 Perbandingan Sebelum → Sesudah Interpolasi")
 
-    st.success("Interpolasi berhasil")
+        before = df.loc[mask_na, ["Tanggal"] + FITUR].reset_index(drop=True)
+        after = df_interp.loc[mask_na, ["Tanggal"] + FITUR].reset_index(drop=True)
+
+        compare = before.copy()
+        for col in FITUR:
+            compare[col] = before[col].astype(str) + " → " + after[col].round(3).astype(str)
+
+        st.dataframe(compare, use_container_width=True)
+
+    st.subheader("📈 Grafik Before vs After (RR)")
+
+    fig, ax = plt.subplots(figsize=(16, 5), dpi=140)
+    ax.plot(df["Tanggal"], df["RR"], label="Sebelum", alpha=0.6)
+    ax.plot(df_interp["Tanggal"], df_interp["RR"], label="Sesudah", linewidth=2.5)
+
+    ax.set_title("Curah Hujan Sebelum vs Sesudah Interpolasi")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (mm)")
+    ax.legend()
+    ax.grid(True, linestyle="--", alpha=0.3)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    st.pyplot(fig, use_container_width=True)
+
+    st.success("Interpolasi selesai")
 
 
 # =========================
@@ -157,7 +189,7 @@ elif menu == "Normalisasi":
         st.error("Lakukan interpolasi dulu.")
         st.stop()
 
-    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaler = MinMaxScaler()
     scaled = scaler.fit_transform(df[FITUR])
 
     st.session_state.scaler = scaler
@@ -169,7 +201,7 @@ elif menu == "Normalisasi":
     st.subheader("📊 Data Setelah Normalisasi")
     st.dataframe(df_scaled, use_container_width=True)
 
-    st.success("Normalisasi berhasil")
+    st.success("Normalisasi selesai")
 
 
 # =========================
@@ -179,36 +211,21 @@ elif menu == "Normalisasi":
 elif menu == "Load Model":
 
     if st.button("🚀 Load Model"):
-
         try:
-            model = load_model(
-                "model_34_ep100_lr0.0001_ts25.h5",
-                compile=False
-            )
+            model = load_model("model_34_ep100_lr0.0001_ts25.h5", compile=False)
+            model.compile(optimizer="adam", loss="mse", metrics=["mae"])
 
-            model.compile(
-                optimizer="adam",
-                loss=tf.keras.losses.MeanSquaredError(),
-                metrics=["mae"]
-            )
-
-            x_test = pd.read_csv("X_test_34.csv").values
+            x_test = pd.read_csv("X_test_34.csv").values.reshape(-1, TIMESTEP, len(FITUR))
             y_test = pd.read_csv("y_test_34.csv").values
-
-            x_test = x_test.reshape(
-                x_test.shape[0],
-                TIMESTEP,
-                len(FITUR)
-            )
 
             st.session_state.model = model
             st.session_state.x_test = x_test
             st.session_state.y_test = y_test
 
-            st.success("Model & data test berhasil di-load")
+            st.success("Model berhasil di-load")
 
         except Exception as e:
-            st.error(f"Gagal load model atau data test: {e}")
+            st.error(f"Gagal load model: {e}")
 
 
 # =========================
@@ -223,54 +240,46 @@ elif menu == "Prediksi Test":
     y_test = st.session_state.y_test
     df = st.session_state.df_interpolasi
 
-    if model is None or scaler is None or df is None:
-        st.error("Pastikan dataset, normalisasi, dan model sudah di-load.")
+    if None in (model, scaler, x_test, y_test, df):
+        st.error("Pastikan semua tahap sudah dijalankan.")
         st.stop()
 
     pred = model.predict(x_test, verbose=0)
 
     dummy_pred = np.zeros((len(pred), len(FITUR)))
     dummy_pred[:, 2] = pred.flatten()
-    pred_inverse = scaler.inverse_transform(dummy_pred)[:, 2]
+    pred_inv = scaler.inverse_transform(dummy_pred)[:, 2]
 
     dummy_actual = np.zeros((len(y_test), len(FITUR)))
     dummy_actual[:, 2] = y_test.flatten()
-    actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
+    actual_inv = scaler.inverse_transform(dummy_actual)[:, 2]
 
-    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
+    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inv)].reset_index(drop=True)
 
     hasil = pd.DataFrame({
         "Tanggal": tanggal,
-        "Aktual RR": actual_inverse,
-        "Prediksi RR": pred_inverse
-    }).sort_values("Tanggal")
+        "Aktual RR": actual_inv,
+        "Prediksi RR": pred_inv
+    })
 
     st.subheader("📉 Hasil Prediksi Data Test")
     st.dataframe(hasil, use_container_width=True)
 
-    rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
+    rmse = np.sqrt(np.mean((actual_inv - pred_inv) ** 2))
     st.metric("RMSE", f"{rmse:.3f}")
 
-    smooth_actual = hasil["Aktual RR"].rolling(7, center=True).mean()
-    smooth_pred = hasil["Prediksi RR"].rolling(7, center=True).mean()
-
     fig, ax = plt.subplots(figsize=(16, 6), dpi=140)
+    ax.plot(hasil["Tanggal"], hasil["Aktual RR"], label="Aktual", linewidth=2.5)
+    ax.plot(hasil["Tanggal"], hasil["Prediksi RR"], label="Prediksi", linestyle="--", linewidth=2.5)
 
-    ax.plot(hasil["Tanggal"], smooth_actual, label="Aktual", linewidth=2.8)
-    ax.plot(hasil["Tanggal"], smooth_pred, label="Prediksi", linewidth=2.8, linestyle="--")
-    ax.fill_between(hasil["Tanggal"], smooth_actual, smooth_pred, alpha=0.15)
-
-    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-
-    ax.set_title("Perbandingan Aktual vs Prediksi Curah Hujan", fontsize=18, fontweight="bold")
+    ax.set_title("Aktual vs Prediksi Curah Hujan")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (mm)")
     ax.legend()
     ax.grid(True, linestyle="--", alpha=0.3)
-
     plt.xticks(rotation=45)
     plt.tight_layout()
+
     st.pyplot(fig, use_container_width=True)
 
 
@@ -285,8 +294,8 @@ elif menu == "Prediksi Masa Depan":
     x_test = st.session_state.x_test
     df = st.session_state.df_interpolasi
 
-    if model is None or scaler is None or df is None:
-        st.error("Pastikan dataset, normalisasi, dan model sudah di-load.")
+    if None in (model, scaler, x_test, df):
+        st.error("Pastikan semua tahap sudah dijalankan.")
         st.stop()
 
     n = st.selectbox("Jumlah hari prediksi", [1, 7, 14, 30, 90, 180, 365])
@@ -301,37 +310,26 @@ elif menu == "Prediksi Masa Depan":
         new_row = last[:, -1, :].copy()
         new_row[0][2] = pred[0][0]
 
-        last = np.concatenate(
-            [last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))],
-            axis=1
-        )
+        last = np.concatenate([last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))], axis=1)
 
     dummy = np.zeros((n, len(FITUR)))
-    dummy[:, 2] = np.array(future_scaled)
-    future_inverse = scaler.inverse_transform(dummy)[:, 2]
+    dummy[:, 2] = future_scaled
+    future_inv = scaler.inverse_transform(dummy)[:, 2]
 
-    tanggal_future = pd.date_range(
-        start=df["Tanggal"].iloc[-1],
-        periods=n + 1
-    )[1:]
+    tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:]
 
-    hasil_future = pd.DataFrame({
-        "Tanggal": tanggal_future,
-        "Prediksi RR": future_inverse
-    })
+    hasil_future = pd.DataFrame({"Tanggal": tanggal_future, "Prediksi RR": future_inv})
 
     st.subheader("🔮 Prediksi Curah Hujan Masa Depan")
     st.dataframe(hasil_future, use_container_width=True)
 
     fig, ax = plt.subplots(figsize=(16, 6), dpi=140)
-    ax.plot(tanggal_future, future_inverse, marker="o", linewidth=2.5)
-
-    ax.set_title("Prediksi Curah Hujan Masa Depan", fontsize=18, fontweight="bold")
+    ax.plot(tanggal_future, future_inv, marker="o", linewidth=2.5)
+    ax.set_title("Prediksi Curah Hujan Masa Depan")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (mm)")
     ax.grid(True, linestyle="--", alpha=0.3)
-
     plt.xticks(rotation=45)
     plt.tight_layout()
-    st.pyplot(fig, use_container_width=True)
 
+    st.pyplot(fig, use_container_width=True)
