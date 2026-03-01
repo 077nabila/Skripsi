@@ -147,10 +147,13 @@ elif menu == "Interpolasi Linear":
 
     df_after = df_interp.loc[mask_na, ["Tanggal"] + FITUR]
 
-    st.subheader("📊 Hasil Setelah Interpolasi (Hanya Baris yang Diubah)")
+    st.subheader("📊 Hasil Setelah Interpolasi (Nomor Urut = Posisi Data Asli)")
 
-    compare = df_missing.reset_index(drop=True)
-    after = df_after.reset_index(drop=True)
+    compare = df_missing.copy()
+    after = df_after.copy()
+
+    compare.insert(0, "No", compare.index)
+    after.insert(0, "No", after.index)
 
     hasil_compare = compare.copy()
     for col in FITUR:
@@ -160,16 +163,20 @@ elif menu == "Interpolasi Linear":
             + after[col].round(3).astype(str)
         )
 
-    st.dataframe(hasil_compare, use_container_width=True, height=400)
+    st.dataframe(
+        hasil_compare[["No", "Tanggal"] + FITUR],
+        use_container_width=True,
+        height=400
+    )
 
     st.subheader("📈 Grafik Sebelum vs Sesudah Interpolasi (RR)")
 
     fig, ax = plt.subplots(figsize=(16, 6), dpi=140)
 
-    ax.plot(df["Tanggal"], df["RR"], label="Sebelum Interpolasi", color="#E74C3C", linewidth=2, alpha=0.7)
-    ax.plot(df_interp["Tanggal"], df_interp["RR"], label="Sesudah Interpolasi", color="#2ECC71", linewidth=2.8)
+    ax.plot(df["Tanggal"], df["RR"], label="Sebelum Interpolasi", color="#1f77b4", linewidth=2, alpha=0.7)  # biru
+    ax.plot(df_interp["Tanggal"], df_interp["RR"], label="Sesudah Interpolasi", color="#d62728", linewidth=2.8)  # merah
 
-    ax.scatter(df_missing["Tanggal"], df_missing["RR"], color="#8E44AD", label="Titik Missing", s=50, zorder=5)
+    ax.scatter(df_missing["Tanggal"], df_missing["RR"], color="#9467bd", label="Titik Missing", s=50, zorder=5)
 
     ax.set_title("Perbandingan Curah Hujan Sebelum vs Sesudah Interpolasi", fontsize=18, fontweight="bold")
     ax.set_xlabel("Tanggal")
@@ -181,7 +188,7 @@ elif menu == "Interpolasi Linear":
     plt.tight_layout()
     st.pyplot(fig, use_container_width=True)
 
-    st.success("Interpolasi selesai — hanya data missing yang ditampilkan")
+    st.success("Interpolasi selesai — nomor urut & visual sudah rapi")
 
 
 # =========================
