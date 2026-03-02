@@ -23,6 +23,15 @@ TIMESTEP = 25
 plt.style.use("seaborn-v0_8-darkgrid")
 st.set_page_config(layout="wide", page_title="Prediksi Curah Hujan LSTM")
 
+# Metadata model (sesuaikan dengan model kamu)
+MODEL_META = {
+    "path": "model_34_ep100_lr0.0001_ts25.h5",
+    "epoch": 100,
+    "lr": 0.0001,
+    "durasi": "±31 menit",
+    "timestep": 25
+}
+
 
 # =========================
 # TITLE
@@ -54,7 +63,8 @@ keys = [
     "scaler",
     "model",
     "x_test",
-    "y_test"
+    "y_test",
+    "model_meta_loaded"
 ]
 
 for k in keys:
@@ -86,7 +96,6 @@ if menu == "Dataset":
 
     kolom_wajib = ["Tanggal"] + FITUR
     kolom_hilang = [c for c in kolom_wajib if c not in df.columns]
-
     if kolom_hilang:
         st.error(f"Kolom berikut wajib ada: {kolom_hilang}")
         st.stop()
@@ -96,7 +105,6 @@ if menu == "Dataset":
 
     df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True)
     gagal = df["Tanggal"].isna().sum()
-
     if gagal > 0:
         st.warning(f"{gagal} baris bukan data tanggal & dibuang.")
 
@@ -120,7 +128,6 @@ if menu == "Dataset":
 elif menu == "Interpolasi Linear":
 
     df = st.session_state.df_asli
-
     if df is None:
         st.error("Upload dataset dulu.")
         st.stop()
@@ -135,11 +142,10 @@ elif menu == "Interpolasi Linear":
     df_missing = df[mask_missing].copy()
     df_after = df_interp.loc[df_missing.index].copy()
 
-    st.subheader("🧩 Baris yang Mengalami Missing Value (Before → After Interpolasi)")
+    st.subheader("🧩 Baris Missing (Before → After Interpolasi)")
 
     compare = df_missing.copy()
     after = df_after.copy()
-
     compare.insert(0, "No", compare.index)
     after.insert(0, "No", after.index)
 
@@ -159,11 +165,9 @@ elif menu == "Interpolasi Linear":
 
     st.info(f"Jumlah data yang diinterpolasi: {mask_missing.sum()} baris")
 
-    # Grafik sebelum vs sesudah (contoh RR)
     fig, ax = plt.subplots(figsize=(14, 5), dpi=140)
     ax.plot(df["Tanggal"], df["RR"], color="red", alpha=0.6, label="Sebelum Interpolasi")
     ax.plot(df_interp["Tanggal"], df_interp["RR"], color="blue", linewidth=2, label="Sesudah Interpolasi")
-
     ax.set_title("Perbandingan Curah Hujan (RR) Sebelum vs Sesudah Interpolasi")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (mm)")
@@ -181,16 +185,12 @@ elif menu == "Interpolasi Linear":
 elif menu == "Normalisasi":
 
     df = st.session_state.df_interpolasi
-
     if df is None:
         st.error("Lakukan interpolasi dulu.")
         st.stop()
 
     st.subheader("📏 Nilai Minimum & Maksimum (Sebelum Normalisasi)")
-    minmax = pd.DataFrame({
-        "Min": df[FITUR].min(),
-        "Max": df[FITUR].max()
-    })
+    minmax = pd.DataFrame({"Min": df[FITUR].min(), "Max": df[FITUR].max()})
     st.dataframe(minmax, use_container_width=True)
 
     scaler = MinMaxScaler(feature_range=(0, 1))
@@ -223,22 +223,27 @@ elif menu == "Normalisasi":
 
 elif menu == "Load Model":
 
-    if st.button("🚀 Load Model"):
-
+    if st.button("🚀 Load Model Terbaik"):
         try:
-            model = load_model("model_34_ep100_lr0.0001_ts25.h5", compile=False)
+            model = load_model(MODEL_META["path"], compile=False)
             model.compile(optimizer="adam", loss=tf.keras.losses.MeanSquaredError(), metrics=["mae"])
 
             x_test = pd.read_csv("X_test_34.csv").values
             y_test = pd.read_csv("y_test_34.csv").values
-
             x_test = x_test.reshape(x_test.shape[0], TIMESTEP, len(FITUR))
 
             st.session_state.model = model
             st.session_state.x_test = x_test
             st.session_state.y_test = y_test
+            st.session_state.model_meta_loaded = MODEL_META
 
             st.success("Model & data test berhasil di-load")
+
+            st.info("📌 Metadata Model yang Dipakai")
+            st.write(f"Epoch: {MODEL_META['epoch']}")
+            st.write(f"Learning Rate: {MODEL_META['lr']}")
+            st.write(f"Durasi Training: {MODEL_META['durasi']}")
+            st.write(f"Timestep: {MODEL_META['timestep']}")
 
         except Exception as e:
             st.error(f"Gagal load model: {e}")
@@ -256,9 +261,18 @@ elif menu == "Prediksi Test":
     y_test = st.session_state.y_test
     df = st.session_state.df_interpolasi
 
-    if model is None or scaler is None or df is None:
-        st.error("Pastikan dataset, normalisasi, dan model sudah di-load.")
+    if model is None:
+        st.warning("⚠️ Load Model dulu di menu 'Load Model'.")
         st.stop()
+
+    if scaler is None or df is None or x_test is None or y_test is None:
+        st.error("Pastikan dataset, normalisasi, dan data test sudah siap.")
+        st.stop()
+
+    st.subheader("📌 Model yang Digunakan")
+    meta = st.session_state.model_meta_loaded
+    if meta:
+        st.write(f"Epoch: {meta['epoch']} | LR: {meta['lr']} | Durasi: {meta['durasi']} | Timestep: {meta['timestep']}")
 
     pred = model.predict(x_test, verbose=0)
 
@@ -270,13 +284,11 @@ elif menu == "Prediksi Test":
     dummy_actual[:, 2] = y_test.flatten()
     actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
 
-    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
+    rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
+    st.metric("📉 RMSE (Data Test)", f"{rmse:.3f}")
 
-    hasil = pd.DataFrame({
-        "Tanggal": tanggal,
-        "Aktual RR": actual_inverse,
-        "Prediksi RR": pred_inverse
-    })
+    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
+    hasil = pd.DataFrame({"Tanggal": tanggal, "Aktual RR": actual_inverse, "Prediksi RR": pred_inverse})
 
     st.subheader("📉 Hasil Prediksi Data Test")
     st.dataframe(hasil, use_container_width=True)
@@ -303,11 +315,19 @@ elif menu == "Prediksi Masa Depan":
     x_test = st.session_state.x_test
     df = st.session_state.df_interpolasi
 
-    if model is None or scaler is None or df is None:
-        st.error("Pastikan dataset, normalisasi, dan model sudah di-load.")
+    if model is None:
+        st.warning("⚠️ Load Model dulu di menu 'Load Model'.")
         st.stop()
 
-    n = st.selectbox("Jumlah hari prediksi", [1, 7, 14, 30, 90, 180, 365])
+    if scaler is None or df is None or x_test is None:
+        st.error("Pastikan dataset, normalisasi, dan data test sudah siap.")
+        st.stop()
+
+    horizon = st.radio("Horizon Prediksi", ["Short-term (1–14 hari)", "Long-term (30–365 hari)"])
+    if horizon == "Short-term (1–14 hari)":
+        n = st.selectbox("Pilih jumlah hari", [1, 7, 14])
+    else:
+        n = st.selectbox("Pilih jumlah hari", [30, 90, 180, 365])
 
     last = x_test[-1:]
     future_scaled = []
@@ -315,10 +335,8 @@ elif menu == "Prediksi Masa Depan":
     for _ in range(n):
         pred = model.predict(last, verbose=0)
         future_scaled.append(pred[0][0])
-
         new_row = last[:, -1, :].copy()
         new_row[0][2] = pred[0][0]
-
         last = np.concatenate([last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))], axis=1)
 
     dummy = np.zeros((n, len(FITUR)))
@@ -326,11 +344,7 @@ elif menu == "Prediksi Masa Depan":
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
     tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:]
-
-    hasil_future = pd.DataFrame({
-        "Tanggal": tanggal_future,
-        "Prediksi RR": future_inverse
-    })
+    hasil_future = pd.DataFrame({"Tanggal": tanggal_future, "Prediksi RR": future_inverse})
 
     st.subheader("🔮 Prediksi Curah Hujan Masa Depan")
     st.dataframe(hasil_future, use_container_width=True)
