@@ -143,7 +143,7 @@ elif menu == "Interpolasi Linear":
     df_missing = df[mask_missing].copy()
     df_after = df_interp.loc[df_missing.index].copy()
 
-    st.subheader("Baris Missing (Before → After Interpolasi)")
+    st.subheader("Data setelah dilakukan interpolasi:)")
 
     compare = df_missing.copy()
     after = df_after.copy()
@@ -219,10 +219,10 @@ elif menu == "Normalisasi":
 
 
 # =========================
-# MENU 5 — PREDIKSI TEST
+# MENU 5 — PREDIKSI LSTM
 # =========================
 
-elif menu == "Prediksi Test":
+elif menu == "Prediksi LSTM":
 
     model = st.session_state.model
     scaler = st.session_state.scaler
@@ -259,7 +259,7 @@ elif menu == "Prediksi Test":
     tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
     hasil = pd.DataFrame({"Tanggal": tanggal, "Aktual RR": actual_inverse, "Prediksi RR": pred_inverse})
 
-    st.subheader("Hasil Prediksi Data Test")
+    st.subheader("Hasil prediksi data uji")
     st.dataframe(hasil, use_container_width=True)
 
     fig, ax = plt.subplots(figsize=(14, 5), dpi=140)
@@ -277,7 +277,7 @@ elif menu == "Prediksi Test":
 # MENU 6 — PREDIKSI MASA DEPAN
 # =========================
 
-elif menu == "Prediksi Masa Depan":
+elif menu == "Implementasi":
 
     model = st.session_state.model
     scaler = st.session_state.scaler
@@ -326,3 +326,4 @@ elif menu == "Prediksi Masa Depan":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
+
