@@ -322,7 +322,7 @@ elif menu == "Prediksi Masa Depan":
         st.error("Pastikan dataset, normalisasi, dan data test sudah siap.")
         st.stop()
 
-    horizon = st.radio("Horizon Prediksi", ["Short-term (1–14 hari)", "Long-term (30–365 hari)"])
+    horizon = st.radio("Periode Waktu ke depan", ["Short-term (1–14 hari)", "Long-term (30–365 hari)"])
     if horizon == "Short-term (1–14 hari)":
         n = st.selectbox("Pilih jumlah hari", [1, 7, 14])
     else:
@@ -355,3 +355,4 @@ elif menu == "Prediksi Masa Depan":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
+
