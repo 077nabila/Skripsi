@@ -62,7 +62,6 @@ keys = [
     "model",
     "x_test",
     "y_test",
-    "model_meta_loaded"
 ]
 
 for k in keys:
@@ -128,7 +127,7 @@ elif menu == "Interpolasi Linear":
 
     st.session_state.df_interpolasi = df_interp
 
-    st.subheader("Data setelah interpolasi")
+    st.subheader("Data Setelah Interpolasi")
     st.dataframe(df_interp, use_container_width=True)
     st.success("Interpolasi selesai.")
 
@@ -151,11 +150,6 @@ elif menu == "Normalisasi":
     st.session_state.scaler = scaler
     st.session_state.scaled_data = scaled
 
-    df_scaled = pd.DataFrame(scaled, columns=FITUR)
-    df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
-
-    st.subheader("Data Setelah Normalisasi")
-    st.dataframe(df_scaled, use_container_width=True)
     st.success("Normalisasi berhasil.")
 
 
@@ -181,7 +175,6 @@ elif menu == "Load Model":
             st.session_state.model = model
             st.session_state.x_test = x_test
             st.session_state.y_test = y_test
-            st.session_state.model_meta_loaded = MODEL_META
 
             st.success("Model & data test berhasil di-load")
 
@@ -202,7 +195,7 @@ elif menu == "Prediksi Test":
     df = st.session_state.df_interpolasi
 
     if model is None or scaler is None or x_test is None or y_test is None or df is None:
-        st.error("Pastikan dataset, normalisasi, dan model sudah siap.")
+        st.error("Pastikan semua proses sebelumnya sudah dilakukan.")
         st.stop()
 
     pred = model.predict(x_test, verbose=0)
@@ -218,6 +211,29 @@ elif menu == "Prediksi Test":
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
     st.metric("RMSE (Data Test)", f"{rmse:.3f}")
 
+    tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
+
+    hasil = pd.DataFrame({
+        "Tanggal": tanggal,
+        "Aktual RR": actual_inverse,
+        "Prediksi RR": pred_inverse
+    })
+
+    st.subheader("Hasil Prediksi Data Test")
+    st.dataframe(hasil, use_container_width=True)
+
+    # Grafik
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.plot(hasil["Tanggal"], hasil["Aktual RR"], label="Aktual")
+    ax.plot(hasil["Tanggal"], hasil["Prediksi RR"], linestyle="--", label="Prediksi")
+    ax.set_title("Perbandingan Aktual vs Prediksi")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (mm)")
+    ax.legend()
+    plt.xticks(rotation=45)
+
+    st.pyplot(fig)
+
 
 # =========================
 # MENU 6 — PREDIKSI MASA DEPAN
@@ -231,7 +247,7 @@ elif menu == "Prediksi Masa Depan":
     df = st.session_state.df_interpolasi
 
     if model is None or scaler is None or x_test is None or df is None:
-        st.error("Pastikan dataset, normalisasi, dan model sudah siap.")
+        st.error("Pastikan semua proses sebelumnya sudah dilakukan.")
         st.stop()
 
     n = st.selectbox("Jumlah hari prediksi", [7, 14, 30, 90, 180, 365])
@@ -253,7 +269,6 @@ elif menu == "Prediksi Masa Depan":
 
     dummy = np.zeros((n, len(FITUR)))
     dummy[:, 2] = np.array(future_scaled)
-
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
     tanggal_future = pd.date_range(
@@ -268,3 +283,13 @@ elif menu == "Prediksi Masa Depan":
 
     st.subheader("Prediksi Curah Hujan Masa Depan")
     st.dataframe(hasil_future, use_container_width=True)
+
+    # Grafik Future
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.plot(hasil_future["Tanggal"], hasil_future["Prediksi RR"], marker="o")
+    ax.set_title("Grafik Prediksi Curah Hujan Masa Depan")
+    ax.set_xlabel("Tanggal")
+    ax.set_ylabel("Curah Hujan (mm)")
+    plt.xticks(rotation=45)
+
+    st.pyplot(fig)
