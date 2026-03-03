@@ -103,8 +103,7 @@ if menu == "Dataset":
     st.subheader("Info Awal Dataset")
     st.write("Jumlah baris awal:", len(df))
 
-    # Konversi tanggal + hapus detik
-    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True).dt.date
+    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True)
     gagal = df["Tanggal"].isna().sum()
     if gagal > 0:
         st.warning(f"{gagal} baris bukan data tanggal & dibuang.")
@@ -116,7 +115,7 @@ if menu == "Dataset":
 
     st.subheader("Dataset Asli")
     st.write(f"Jumlah data: **{len(df)} baris**")
-    st.write(f"Periode: **{df['Tanggal'].min()}** s.d. **{df['Tanggal'].max()}**")
+    st.write(f"Periode: **{df['Tanggal'].min().date()}** s.d. **{df['Tanggal'].max().date()}**")
     st.dataframe(df, use_container_width=True, height=600)
 
     st.success("Dataset berhasil dimuat lengkap.")
@@ -143,7 +142,7 @@ elif menu == "Interpolasi Linear":
     df_missing = df[mask_missing].copy()
     df_after = df_interp.loc[df_missing.index].copy()
 
-    st.subheader("Data setelah dilakukan interpolasi:)")
+    st.subheader("Baris Missing (Before → After Interpolasi)")
 
     compare = df_missing.copy()
     after = df_after.copy()
@@ -217,6 +216,7 @@ elif menu == "Normalisasi":
 
     st.success("Normalisasi berhasil (MinMaxScaler 0–1).")
 
+
 # =========================
 # MENU 4 — LOAD MODEL
 # =========================
@@ -248,11 +248,12 @@ elif menu == "Load Model":
         except Exception as e:
             st.error(f"Gagal load model: {e}")
 
+
 # =========================
-# MENU 5 — PREDIKSI LSTM
+# MENU 5 — PREDIKSI TEST
 # =========================
 
-elif menu == "Prediksi LSTM":
+elif menu == "Prediksi Test":
 
     model = st.session_state.model
     scaler = st.session_state.scaler
@@ -289,7 +290,7 @@ elif menu == "Prediksi LSTM":
     tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
     hasil = pd.DataFrame({"Tanggal": tanggal, "Aktual RR": actual_inverse, "Prediksi RR": pred_inverse})
 
-    st.subheader("Hasil prediksi data uji")
+    st.subheader("Hasil Prediksi Data Test")
     st.dataframe(hasil, use_container_width=True)
 
     fig, ax = plt.subplots(figsize=(14, 5), dpi=140)
@@ -307,7 +308,7 @@ elif menu == "Prediksi LSTM":
 # MENU 6 — PREDIKSI MASA DEPAN
 # =========================
 
-elif menu == "Implementasi":
+elif menu == "Prediksi Masa Depan":
 
     model = st.session_state.model
     scaler = st.session_state.scaler
@@ -342,8 +343,7 @@ elif menu == "Implementasi":
     dummy[:, 2] = np.array(future_scaled)
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
-    # Hapus detik pada tanggal
-    tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:].date
+    tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:]
     hasil_future = pd.DataFrame({"Tanggal": tanggal_future, "Prediksi RR": future_inverse})
 
     st.subheader("Prediksi Curah Hujan Masa Depan")
@@ -356,5 +356,3 @@ elif menu == "Implementasi":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
-
-
