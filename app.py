@@ -79,7 +79,7 @@ for k in keys:
 if menu == "Dataset":
 
     uploaded_file = st.file_uploader(
-        "📂 Upload dataset (Excel / CSV)",
+        "Upload dataset (Excel / CSV)",
         type=["xlsx", "xls", "csv"]
     )
 
@@ -100,7 +100,7 @@ if menu == "Dataset":
         st.error(f"Kolom berikut wajib ada: {kolom_hilang}")
         st.stop()
 
-    st.subheader("🔎 Info Awal Dataset")
+    st.subheader("Info Awal Dataset")
     st.write("Jumlah baris awal:", len(df))
 
     df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True)
@@ -113,7 +113,7 @@ if menu == "Dataset":
 
     st.session_state.df_asli = df
 
-    st.subheader("📄 Dataset Asli")
+    st.subheader("Dataset Asli")
     st.write(f"Jumlah data: **{len(df)} baris**")
     st.write(f"Periode: **{df['Tanggal'].min().date()}** s.d. **{df['Tanggal'].max().date()}**")
     st.dataframe(df, use_container_width=True, height=600)
@@ -142,7 +142,7 @@ elif menu == "Interpolasi Linear":
     df_missing = df[mask_missing].copy()
     df_after = df_interp.loc[df_missing.index].copy()
 
-    st.subheader("🧩 Baris Missing (Before → After Interpolasi)")
+    st.subheader("Baris Missing (Before → After Interpolasi)")
 
     compare = df_missing.copy()
     after = df_after.copy()
@@ -189,7 +189,7 @@ elif menu == "Normalisasi":
         st.error("Lakukan interpolasi dulu.")
         st.stop()
 
-    st.subheader("📏 Nilai Minimum & Maksimum (Sebelum Normalisasi)")
+    st.subheader("Nilai Minimum & Maksimum (Sebelum Normalisasi)")
     minmax = pd.DataFrame({"Min": df[FITUR].min(), "Max": df[FITUR].max()})
     st.dataframe(minmax, use_container_width=True)
 
@@ -202,7 +202,7 @@ elif menu == "Normalisasi":
     df_scaled = pd.DataFrame(scaled, columns=FITUR)
     df_scaled.insert(0, "Tanggal", df["Tanggal"].values)
 
-    st.subheader("📊 Data Setelah Normalisasi (MinMax 0–1)")
+    st.subheader("Data Setelah Normalisasi (MinMax 0–1)")
     st.dataframe(df_scaled, use_container_width=True, height=500)
 
     fig, ax = plt.subplots(figsize=(14, 5), dpi=140)
@@ -223,7 +223,7 @@ elif menu == "Normalisasi":
 
 elif menu == "Load Model":
 
-    if st.button("🚀 Load Model Terbaik"):
+    if st.button("Load Model Terbaik"):
         try:
             model = load_model(MODEL_META["path"], compile=False)
             model.compile(optimizer="adam", loss=tf.keras.losses.MeanSquaredError(), metrics=["mae"])
@@ -239,7 +239,7 @@ elif menu == "Load Model":
 
             st.success("Model & data test berhasil di-load")
 
-            st.info("📌 Metadata Model yang Dipakai")
+            st.info("Metadata Model yang Dipakai")
             st.write(f"Epoch: {MODEL_META['epoch']}")
             st.write(f"Learning Rate: {MODEL_META['lr']}")
             st.write(f"Durasi Training: {MODEL_META['durasi']}")
@@ -262,14 +262,14 @@ elif menu == "Prediksi Test":
     df = st.session_state.df_interpolasi
 
     if model is None:
-        st.warning("⚠️ Load Model dulu di menu 'Load Model'.")
+        st.warning("Load Model dulu di menu 'Load Model'.")
         st.stop()
 
     if scaler is None or df is None or x_test is None or y_test is None:
         st.error("Pastikan dataset, normalisasi, dan data test sudah siap.")
         st.stop()
 
-    st.subheader("📌 Model yang Digunakan")
+    st.subheader("Model yang Digunakan")
     meta = st.session_state.model_meta_loaded
     if meta:
         st.write(f"Epoch: {meta['epoch']} | LR: {meta['lr']} | Durasi: {meta['durasi']} | Timestep: {meta['timestep']}")
@@ -285,12 +285,12 @@ elif menu == "Prediksi Test":
     actual_inverse = scaler.inverse_transform(dummy_actual)[:, 2]
 
     rmse = np.sqrt(np.mean((actual_inverse - pred_inverse) ** 2))
-    st.metric("📉 RMSE (Data Test)", f"{rmse:.3f}")
+    st.metric("RMSE (Data Test)", f"{rmse:.3f}")
 
     tanggal = df["Tanggal"].iloc[TIMESTEP: TIMESTEP + len(actual_inverse)].reset_index(drop=True)
     hasil = pd.DataFrame({"Tanggal": tanggal, "Aktual RR": actual_inverse, "Prediksi RR": pred_inverse})
 
-    st.subheader("📉 Hasil Prediksi Data Test")
+    st.subheader("Hasil Prediksi Data Test")
     st.dataframe(hasil, use_container_width=True)
 
     fig, ax = plt.subplots(figsize=(14, 5), dpi=140)
@@ -316,7 +316,7 @@ elif menu == "Prediksi Masa Depan":
     df = st.session_state.df_interpolasi
 
     if model is None:
-        st.warning("⚠️ Load Model dulu di menu 'Load Model'.")
+        st.warning("Load Model dulu di menu 'Load Model'.")
         st.stop()
 
     if scaler is None or df is None or x_test is None:
@@ -346,7 +346,7 @@ elif menu == "Prediksi Masa Depan":
     tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:]
     hasil_future = pd.DataFrame({"Tanggal": tanggal_future, "Prediksi RR": future_inverse})
 
-    st.subheader("🔮 Prediksi Curah Hujan Masa Depan")
+    st.subheader("Prediksi Curah Hujan Masa Depan")
     st.dataframe(hasil_future, use_container_width=True)
 
     fig, ax = plt.subplots(figsize=(14, 5), dpi=140)
@@ -356,3 +356,4 @@ elif menu == "Prediksi Masa Depan":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
+
