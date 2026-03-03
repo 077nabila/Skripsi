@@ -142,7 +142,7 @@ elif menu == "Interpolasi Linear":
     df_missing = df[mask_missing].copy()
     df_after = df_interp.loc[df_missing.index].copy()
 
-    st.subheader("Baris Missing (Before → After Interpolasi)")
+    st.subheader("Data Setelah Dilakukan Interpolasi")
 
     compare = df_missing.copy()
     after = df_after.copy()
@@ -356,3 +356,4 @@ elif menu == "Prediksi Masa Depan":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
+
