@@ -103,7 +103,8 @@ if menu == "Dataset":
     st.subheader("Info Awal Dataset")
     st.write("Jumlah baris awal:", len(df))
 
-    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True)
+    # Konversi tanggal + hapus detik
+    df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True).dt.date
     gagal = df["Tanggal"].isna().sum()
     if gagal > 0:
         st.warning(f"{gagal} baris bukan data tanggal & dibuang.")
@@ -115,7 +116,7 @@ if menu == "Dataset":
 
     st.subheader("Dataset Asli")
     st.write(f"Jumlah data: **{len(df)} baris**")
-    st.write(f"Periode: **{df['Tanggal'].min().date()}** s.d. **{df['Tanggal'].max().date()}**")
+    st.write(f"Periode: **{df['Tanggal'].min()}** s.d. **{df['Tanggal'].max()}**")
     st.dataframe(df, use_container_width=True, height=600)
 
     st.success("Dataset berhasil dimuat lengkap.")
@@ -218,38 +219,6 @@ elif menu == "Normalisasi":
 
 
 # =========================
-# MENU 4 — LOAD MODEL
-# =========================
-
-elif menu == "Load Model":
-
-    if st.button("Load Model Terbaik"):
-        try:
-            model = load_model(MODEL_META["path"], compile=False)
-            model.compile(optimizer="adam", loss=tf.keras.losses.MeanSquaredError(), metrics=["mae"])
-
-            x_test = pd.read_csv("X_test_34.csv").values
-            y_test = pd.read_csv("y_test_34.csv").values
-            x_test = x_test.reshape(x_test.shape[0], TIMESTEP, len(FITUR))
-
-            st.session_state.model = model
-            st.session_state.x_test = x_test
-            st.session_state.y_test = y_test
-            st.session_state.model_meta_loaded = MODEL_META
-
-            st.success("Model & data test berhasil di-load")
-
-            st.info("Metadata Model yang Dipakai")
-            st.write(f"Epoch: {MODEL_META['epoch']}")
-            st.write(f"Learning Rate: {MODEL_META['lr']}")
-            st.write(f"Durasi Training: {MODEL_META['durasi']}")
-            st.write(f"Timestep: {MODEL_META['timestep']}")
-
-        except Exception as e:
-            st.error(f"Gagal load model: {e}")
-
-
-# =========================
 # MENU 5 — PREDIKSI TEST
 # =========================
 
@@ -343,7 +312,8 @@ elif menu == "Prediksi Masa Depan":
     dummy[:, 2] = np.array(future_scaled)
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
-    tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:]
+    # Hapus detik pada tanggal
+    tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:].date
     hasil_future = pd.DataFrame({"Tanggal": tanggal_future, "Prediksi RR": future_inverse})
 
     st.subheader("Prediksi Curah Hujan Masa Depan")
@@ -356,4 +326,3 @@ elif menu == "Prediksi Masa Depan":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
-
