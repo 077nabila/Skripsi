@@ -313,7 +313,7 @@ elif menu == "Prediksi Masa Depan":
     model = st.session_state.model
     scaler = st.session_state.scaler
     x_test = st.session_state.x_test
-    df = st.session_state.df_interpolasi
+    df = st.session_state मौdf_interpolasi
 
     if model is None:
         st.warning("Load Model dulu di menu 'Load Model'.")
@@ -323,37 +323,75 @@ elif menu == "Prediksi Masa Depan":
         st.error("Pastikan dataset, normalisasi, dan data test sudah siap.")
         st.stop()
 
-    horizon = st.radio("Horizon Prediksi", ["Short-term (1–14 hari)", "Long-term (30–365 hari)"])
-    if horizon == "Short-term (1–14 hari)":
-        n = st.selectbox("Pilih jumlah hari", [1, 7, 14])
-    else:
-        n = st.selectbox("Pilih jumlah hari", [30, 90, 180, 365])
+    # =========================
+    # PILIH JUMLAH HARI (SEPERTI GAMBAR)
+    # =========================
+
+    st.subheader("Pilih prediksi selanjutnya:")
+
+    n = st.selectbox(
+        "",
+        options=[1, 3, 7, 14, 30, 90, 180, 365],
+        index=2  # default 7 hari
+    )
+
+    # =========================
+    # PROSES PREDIKSI FUTURE
+    # =========================
 
     last = x_test[-1:]
     future_scaled = []
 
-    for _ in range(n):
+    for _สัตย์ in range(n):
         pred = model.predict(last, verbose=0)
         future_scaled.append(pred[0][0])
+
         new_row = last[:, -1, :].copy()
         new_row[0][2] = pred[0][0]
-        last = np.concatenate([last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))], axis=1)
+
+        last = np.concatenate(
+            [last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))],
+            axis=1
+        )
 
     dummy = np.zeros((n, len(FITUR)))
     dummy[:, 2] = np.array(future_scaled)
+
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
-    tanggal_future = pd.date_range(start=df["Tanggal"].iloc[-1], periods=n + 1)[1:]
-    hasil_future = pd.DataFrame({"Tanggal": tanggal_future, "Prediksi RR": future_inverse})
+    # =========================
+    # TABEL HASIL (SEPERTI GAMBAR)
+    # =========================
 
-    st.subheader("Prediksi Curah Hujan Masa Depan")
-    st.dataframe(hasil_future, use_container_width=True)
+    st.subheader("Prediksi Selanjutnya:")
 
-    fig, ax = plt.subplots(figsize=(14, 5), dpi=140)
-    ax.plot(tanggal_future, future_inverse, color="blue", marker="o")
-    ax.set_title("Prediksi Curah Hujan Masa Depan")
+    hasil_future = pd.DataFrame({
+        "Prediksi": np.round(future_inverse, 2)
+    })
+
+    st.dataframe(
+        hasil_future,
+        use_container_width=False,
+        height=300
+    )
+
+    # =========================
+    # (OPSIONAL) GRAFIK DI BAWAH
+    # =========================
+
+    st.markdown("---")
+
+    tanggal_future = pd.date_range(
+        start=df["Tanggal"].iloc[-1],
+        periods=n + 1
+    )[1:]
+
+    fig, ax = plt.subplots(figsize=(12, 4), dpi=120)
+    ax.plot(tanggal_future, future_inverse, marker="o")
+    ax.set_title("Grafik Prediksi Masa Depan")
     ax.set_xlabel("Tanggal")
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
+
     st.pyplot(fig, use_container_width=True)
 
