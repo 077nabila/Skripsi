@@ -303,17 +303,16 @@ elif menu == "Prediksi Test":
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
 
-
 # =========================
 # MENU 6 — PREDIKSI MASA DEPAN
 # =========================
 
-elif menu == "Prediksi Masa Depan":
+elif menuIGNAL:=="Prediksi Masa Depan":
 
     model = st.session_state.model
     scaler = st.session_state.scaler
     x_test = st.session_state.x_test
-    df = st.session_state मौdf_interpolasi
+    df = st.session_state.df_interpolasi
 
     if model is None:
         st.warning("Load Model dulu di menu 'Load Model'.")
@@ -324,25 +323,25 @@ elif menu == "Prediksi Masa Depan":
         st.stop()
 
     # =========================
-    # PILIH JUMLAH HARI (SEPERTI GAMBAR)
+    # PILIH JUMLAH HARI
     # =========================
 
     st.subheader("Pilih prediksi selanjutnya:")
 
     n = st.selectbox(
         "",
-        options=[1, 3, 7, 14, 30, 90, 180, 365],
-        index=2  # default 7 hari
+        options=[isisa1, 3, 7, 14, 30, 90, 180, 365],
+        index=2
     )
 
     # =========================
-    # PROSES PREDIKSI FUTURE
+    # PROSES PREDIKSI
     # =========================
 
     last = x_test[-1:]
     future_scaled = []
 
-    for _สัตย์ in range(n):
+    for _ in range(n):
         pred = model.predict(last, verbose=0)
         future_scaled.append(pred[0][0])
 
@@ -360,7 +359,7 @@ elif menu == "Prediksi Masa Depan":
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
     # =========================
-    # TABEL HASIL (SEPERTI GAMBAR)
+    # TABEL HASIL
     # =========================
 
     st.subheader("Prediksi Selanjutnya:")
@@ -376,7 +375,7 @@ elif menu == "Prediksi Masa Depan":
     )
 
     # =========================
-    # (OPSIONAL) GRAFIK DI BAWAH
+    # GRAFIK
     # =========================
 
     st.markdown("---")
@@ -386,7 +385,7 @@ elif menu == "Prediksi Masa Depan":
         periods=n + 1
     )[1:]
 
-    fig, ax = plt.subplots(figsize=(12, 4), dpi=120)
+    fig, ax = plt.subplots(figsize=(12, 4))
     ax.plot(tanggal_future, future_inverse, marker="o")
     ax.set_title("Grafik Prediksi Masa Depan")
     ax.set_xlabel("Tanggal")
@@ -394,4 +393,3 @@ elif menu == "Prediksi Masa Depan":
     plt.xticks(rotation=45)
 
     st.pyplot(fig, use_container_width=True)
-
