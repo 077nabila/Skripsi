@@ -6,7 +6,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import load_model
@@ -52,7 +51,7 @@ menu = st.sidebar.radio(
 
 
 # =========================
-# SESSION STATE
+# SESSION STATE INIT
 # =========================
 
 keys = [
@@ -95,6 +94,7 @@ if menu == "Dataset":
 
     kolom_wajib = ["Tanggal"] + FITUR
     kolom_hilang = [c for c in kolom_wajib if c not in df.columns]
+
     if kolom_hilang:
         st.error(f"Kolom berikut wajib ada: {kolom_hilang}")
         st.stop()
@@ -117,6 +117,7 @@ if menu == "Dataset":
 elif menu == "Interpolasi Linear":
 
     df = st.session_state.df_asli
+
     if df is None:
         st.error("Upload dataset dulu.")
         st.stop()
@@ -139,6 +140,7 @@ elif menu == "Interpolasi Linear":
 elif menu == "Normalisasi":
 
     df = st.session_state.df_interpolasi
+
     if df is None:
         st.error("Lakukan interpolasi dulu.")
         st.stop()
@@ -199,8 +201,8 @@ elif menu == "Prediksi Test":
     y_test = st.session_state.y_test
     df = st.session_state.df_interpolasi
 
-    if None in [model, scaler, x_test, y_test, df]:
-        st.error("Pastikan semua proses sebelumnya sudah dilakukan.")
+    if model is None or scaler is None or x_test is None or y_test is None or df is None:
+        st.error("Pastikan dataset, normalisasi, dan model sudah siap.")
         st.stop()
 
     pred = model.predict(x_test, verbose=0)
@@ -228,8 +230,8 @@ elif menu == "Prediksi Masa Depan":
     x_test = st.session_state.x_test
     df = st.session_state.df_interpolasi
 
-    if None in [model, scaler, x_test, df]:
-        st.error("Pastikan semua proses sebelumnya sudah dilakukan.")
+    if model is None or scaler is None or x_test is None or df is None:
+        st.error("Pastikan dataset, normalisasi, dan model sudah siap.")
         st.stop()
 
     n = st.selectbox("Jumlah hari prediksi", [7, 14, 30, 90, 180, 365])
@@ -240,8 +242,10 @@ elif menu == "Prediksi Masa Depan":
     for _ in range(n):
         pred = model.predict(last, verbose=0)
         future_scaled.append(pred[0][0])
+
         new_row = last[:, -1, :].copy()
         new_row[0][2] = pred[0][0]
+
         last = np.concatenate(
             [last[:, 1:, :], new_row.reshape(1, 1, len(FITUR))],
             axis=1
@@ -249,6 +253,7 @@ elif menu == "Prediksi Masa Depan":
 
     dummy = np.zeros((n, len(FITUR)))
     dummy[:, 2] = np.array(future_scaled)
+
     future_inverse = scaler.inverse_transform(dummy)[:, 2]
 
     tanggal_future = pd.date_range(
