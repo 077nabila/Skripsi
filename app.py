@@ -217,6 +217,36 @@ elif menu == "Normalisasi":
 
     st.success("Normalisasi berhasil (MinMaxScaler 0–1).")
 
+# =========================
+# MENU 4 — LOAD MODEL
+# =========================
+
+elif menu == "Load Model":
+
+    if st.button("Load Model Terbaik"):
+        try:
+            model = load_model(MODEL_META["path"], compile=False)
+            model.compile(optimizer="adam", loss=tf.keras.losses.MeanSquaredError(), metrics=["mae"])
+
+            x_test = pd.read_csv("X_test_34.csv").values
+            y_test = pd.read_csv("y_test_34.csv").values
+            x_test = x_test.reshape(x_test.shape[0], TIMESTEP, len(FITUR))
+
+            st.session_state.model = model
+            st.session_state.x_test = x_test
+            st.session_state.y_test = y_test
+            st.session_state.model_meta_loaded = MODEL_META
+
+            st.success("Model & data test berhasil di-load")
+
+            st.info("Metadata Model yang Dipakai")
+            st.write(f"Epoch: {MODEL_META['epoch']}")
+            st.write(f"Learning Rate: {MODEL_META['lr']}")
+            st.write(f"Durasi Training: {MODEL_META['durasi']}")
+            st.write(f"Timestep: {MODEL_META['timestep']}")
+
+        except Exception as e:
+            st.error(f"Gagal load model: {e}")
 
 # =========================
 # MENU 5 — PREDIKSI LSTM
@@ -326,4 +356,5 @@ elif menu == "Implementasi":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
+
 
