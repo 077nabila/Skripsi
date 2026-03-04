@@ -103,7 +103,7 @@ if menu == "Dataset":
     st.subheader("Info Awal Dataset")
     st.write("Jumlah baris awal:", len(df))
 
-    # Konversi tanggal + hapus detik
+  
     df["Tanggal"] = pd.to_datetime(df["Tanggal"], errors="coerce", dayfirst=True).dt.date
     gagal = df["Tanggal"].isna().sum()
     if gagal > 0:
@@ -143,7 +143,7 @@ elif menu == "Interpolasi Linear":
     df_missing = df[mask_missing].copy()
     df_after = df_interp.loc[df_missing.index].copy()
 
-    st.subheader("Baris Missing (Before → After Interpolasi)")
+    st.subheader("Data Setelah Dilakukan Interpolasi :")
 
     compare = df_missing.copy()
     after = df_after.copy()
@@ -292,7 +292,7 @@ elif menu == "Prediksi Masa Depan":
         st.error("Pastikan dataset, normalisasi, dan data test sudah siap.")
         st.stop()
 
-    horizon = st.radio("Horizon Prediksi", ["Short-term (1–14 hari)", "Long-term (30–365 hari)"])
+    horizon = st.radio("Periode Waktu ke Depan", ["Short-term (1–14 hari)", "Long-term (30–365 hari)"])
     if horizon == "Short-term (1–14 hari)":
         n = st.selectbox("Pilih jumlah hari", [1, 7, 14])
     else:
@@ -326,3 +326,4 @@ elif menu == "Prediksi Masa Depan":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
+
