@@ -114,8 +114,7 @@ if menu == "Dataset":
 
     st.session_state.df_asli = df
 
-    st.subheader("Dataset Asli")
-    st.write(f"Jumlah data: **{len(df)} baris**")
+
     st.write(f"Periode: **{df['Tanggal'].min()}** s.d. **{df['Tanggal'].max()}**")
     st.dataframe(df, use_container_width=True, height=600)
 
@@ -356,5 +355,6 @@ elif menu == "Prediksi Masa Depan":
     ax.set_ylabel("Curah Hujan (mm)")
     plt.xticks(rotation=45)
     st.pyplot(fig, use_container_width=True)
+
 
 
